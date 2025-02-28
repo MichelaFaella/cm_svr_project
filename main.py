@@ -38,7 +38,7 @@ X_test_scaled = scaler_x.transform(X_test)
 # -------------------------
 print("\nPerforming Randomized Search to estimate hyperparameter ranges...")
 
-loss_type = LossFunctionType.HUBER
+loss_type = LossFunctionType.SQUARED_HINGE
 
 param_grid_random = {
     "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL],  # Entrambi i kernel
