@@ -4,6 +4,7 @@ import numpy as np
 def huber_like_loss(y_true, y_pred, epsilon=0.1, delta=1.0):
     """
     Computes the Huber-like smoothed loss for Support Vector Regression (SVR).
+    Se hai dati con rumore e vuoi un compromesso tra MAE e MSE scegli questa!!!
 
     Parameters:
     - y_true: Ground truth values (numpy array).
@@ -35,56 +36,52 @@ def huber_like_loss(y_true, y_pred, epsilon=0.1, delta=1.0):
     return np.mean(loss), grad
 
 
-def log_sum_exp_loss(y_true, y_pred, epsilon=0.1, beta=10):
+def quantile_loss(y_true, y_pred, tau=0.5):
     """
-    Computes the Log-Sum-Exp (Softmax-like) loss for Support Vector Regression (SVR).
+        Computes the Quantile Loss (Pinball Loss) for Support Vector Regression (SVR).
+        Se hai dati distribuiti in modo asimmetrico e vuoi modellare gli intervalli di confidenza usa questa!!!
 
-    Parameters:
-    - y_true: Ground truth values (numpy array).
-    - y_pred: Predicted values (numpy array).
-    - epsilon: Insensitivity parameter for SVR.
-    - beta: Sharpness parameter (higher values make the function behave like a hard threshold).
+        Parameters:
+        - y_true: Ground truth values (numpy array).
+        - y_pred: Predicted values (numpy array).
+        - tau: Quantile to optimize (default 0.5 for median).
 
-    Returns:
-    - The computed loss as a scalar.
-    """
+        Returns:
+        - The computed loss as a scalar.
+        """
 
-    # Compute the difference considering the ε-insensitive margin
-    diff = np.abs(y_true - y_pred) - epsilon
-
-    # Apply the Log-Sum-Exp transformation to smooth the loss
-    # - This function approximates the hinge loss in a differentiable way.
-    # - When beta is large, it behaves more like the standard ε-insensitive loss.
-    loss = np.mean(np.log(1 + np.exp(beta * diff)) / beta)
+    diff = y_true - y_pred
+    loss = np.mean(np.maximum(tau * diff, (tau - 1) * diff))
 
     # Compute the gradient
-    grad = np.sign(y_pred - y_true) * (1 / (1 + np.exp(-beta * diff)))
+    grad = np.where(diff > 0, tau, tau - 1)
 
     return loss, grad
 
 
-def squared_hinge_loss(y_true, y_pred, epsilon=0.1):
+def epsilon_insensitive_loss(y_true, y_pred, epsilon=0.1):
     """
-    Computes the squared hinge loss for Support Vector Regression (SVR).
+    Computes the ε-insensitive loss for Support Vector Regression (SVR).
+    If you want to ignore small deviations within the ε margin and penalize only large errors, choose this!!!
 
     Parameters:
     - y_true: Ground truth values (numpy array).
     - y_pred: Predicted values (numpy array).
-    - epsilon: Insensitivity parameter for SVR.
+    - epsilon: Insensitivity margin for SVR.
 
     Returns:
     - The computed loss as a scalar.
+    - The gradient of the loss.
     """
 
-    # Compute the difference considering the ε-insensitive margin
+    # Compute the difference ignoring small deviations within ε
     diff = np.abs(y_true - y_pred) - epsilon
 
-    # Apply squared hinge loss
-    # - If diff < 0 (within the ε-margin), loss is 0 (no penalty).
-    # - If diff > 0, loss grows quadratically (stronger penalization for larger errors).
-    loss = np.mean(np.maximum(0, diff) ** 2)
+    # Apply the ε-insensitive loss function
+    loss = np.where(diff > 0, diff, 0)
 
     # Compute the gradient
-    grad = np.where(diff > 0, np.sign(y_pred - y_true) * diff, 0)
+    grad = np.where(y_pred > y_true + epsilon, 1, 0)
+    grad = np.where(y_pred < y_true - epsilon, -1, grad)
 
-    return loss, grad
+    return np.mean(loss), grad

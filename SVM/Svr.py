@@ -1,12 +1,12 @@
 import numpy as np
 from SVM.utility.Enum import KernelType, LossFunctionType
 from SVM.utility.Kernels import compute_kernel
-from SVM.utility.LossFunction import huber_like_loss, log_sum_exp_loss, squared_hinge_loss
+from SVM.utility.LossFunction import huber_like_loss, quantile_loss, epsilon_insensitive_loss
 
 
 class SupportVectorRegression:
     def __init__(self, C=1.0, epsilon=0.1, kernel_type=KernelType.RBF, loss_function=LossFunctionType.HUBER, sigma=1.0,
-                 degree=3, coef=1):
+                 degree=3, coef=1, learning_rate=0.1):
         self.C = C
         self.epsilon = epsilon
         self.kernel_type = kernel_type
@@ -17,8 +17,9 @@ class SupportVectorRegression:
         self.alpha = None
         self.b = None
         self.X_train = None
+        self.learning_rate = learning_rate
 
-    def fit(self, X, Y, learning_rate=0.01, max_iter=100, smoothing_factor=0.9):
+    def fit(self, X, Y, max_iter=100, smoothing_factor=0.9):
         self.X_train = X
         n_samples = X.shape[0]
         self.b = 0.0
@@ -26,7 +27,8 @@ class SupportVectorRegression:
         K = compute_kernel(X, X, kernel_type=self.kernel_type, sigma=self.sigma, degree=self.degree, coef=self.coef)
         self.alpha = np.random.randn(n_samples) * 0.01
 
-        velocity = None
+        # Velocity help to smooth the gradient
+        velocity = np.zeros_like(self.alpha)
         training_loss = []
 
         for iteration in range(max_iter):
@@ -35,16 +37,13 @@ class SupportVectorRegression:
             if gradients is None:
                 raise ValueError("compute_smooth_gradients ha restituito None, verifica le funzioni di perdita!")
 
-            if velocity is None:
-                velocity = gradients
-            else:
-                velocity = smoothing_factor * velocity + (1 - smoothing_factor) * gradients
+            velocity = smoothing_factor * velocity + (1 - smoothing_factor) * gradients
+            self.alpha -= self.learning_rate * velocity
 
-            self.alpha -= learning_rate * velocity
-
+            # Clipping of alpha
             self.alpha = np.clip(self.alpha, 0, self.C)
 
-            support_vector_indices = np.where((self.alpha > 1e-4) & (self.alpha < self.C))[0]
+            support_vector_indices = np.where((self.alpha > 1e-6) & (self.alpha < self.C))[0]
             if len(support_vector_indices) > 0:
                 self.b = np.mean(Y[support_vector_indices] - np.dot(K[support_vector_indices], self.alpha))
             elif np.any(self.alpha > 0):
@@ -52,6 +51,7 @@ class SupportVectorRegression:
             else:
                 self.b = 0
 
+            # Calculate the loss
             loss = np.mean((Y - np.dot(K, self.alpha) - self.b) ** 2)
             training_loss.append(loss)
 
@@ -75,11 +75,11 @@ class SupportVectorRegression:
 
         if self.loss_function == LossFunctionType.HUBER:
             loss, grad = huber_like_loss(y, y_pred, epsilon, delta)
-        elif self.loss_function == LossFunctionType.LOG_SUM_EXP:
-            loss, grad = log_sum_exp_loss(y, y_pred, epsilon, self.b)
-        elif self.loss_function == LossFunctionType.SQUARED_HINGE:
-            loss, grad = squared_hinge_loss(y, y_pred, epsilon)
+        elif self.loss_function == LossFunctionType.EPSILON_INTENSITIVE:
+            loss, grad = epsilon_insensitive_loss(y, y_pred)
+        elif self.loss_function == LossFunctionType.QUANTILE:
+            loss, grad = quantile_loss(y, y_pred)
         else:
             raise ValueError("Tipo di funzione di perdita non supportata!")
 
-        return np.dot(K.T, grad)
+        return np.dot(K, grad)

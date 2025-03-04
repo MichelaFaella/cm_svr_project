@@ -44,7 +44,8 @@ def grid_search_svr(X_train, y_train, X_val, y_val, param_grid, loss_type=LossFu
             sigma=params.get("sigma", 1.0),
             degree=params.get("degree", 3),
             coef=params.get("coef", 1),
-            loss_function=loss_type
+            loss_function=loss_type,
+            learning_rate=params.get("learning rate")
         )
 
         model.fit(X_train, y_train)
@@ -114,7 +115,8 @@ def random_search_svr(X_train, y_train, X_val, y_val, param_grid, n_iter=10, los
             sigma=params.get("sigma", 1.0),
             degree=params.get("degree", 3),
             coef=params.get("coef", 1),
-            loss_function=loss_type
+            loss_function=loss_type,
+            learning_rate=params.get("learning rate")
         )
 
         model.fit(X_train, y_train)

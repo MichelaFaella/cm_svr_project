@@ -8,5 +8,5 @@ class KernelType(Enum):
 
 class LossFunctionType(Enum):
     HUBER = "humber-like loss"
-    LOG_SUM_EXP = "softmax-like loss"
-    SQUARED_HINGE = "squared hinge loss"
+    QUANTILE = "quantile loss"
+    EPSILON_INTENSITIVE = "epsilon insensitive"

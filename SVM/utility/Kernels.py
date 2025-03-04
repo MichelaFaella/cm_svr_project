@@ -71,7 +71,7 @@ def compute_kernel(x1, x2, kernel_type, **kwargs):
         return print(f"Invalid or null kernel type: {kernel_type}")
 
     n1, n2 = x1.shape[0], x2.shape[0]
-    K = np.zeros((n1, n2)) # Creation of an empty matrix of dimention n1 x n2
+    K = np.zeros((n1, n2))  # Creation of an empty matrix of dimension n1 x n2
 
     # Extract relevant parameters dynamically from kwargs
     kernel_params = {
