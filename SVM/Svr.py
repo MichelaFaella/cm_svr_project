@@ -19,9 +19,6 @@ class SupportVectorRegression:
         self.X_train = None
         self.learning_rate = learning_rate
 
-    # -------------------------
-    # Section smooth gradient
-    # -------------------------
 
     def fit(self, X, Y, max_iter=100, smoothing_factor=0.9):
         self.X_train = X
