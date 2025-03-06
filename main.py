@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib
+import pandas as pd
+from SVM.utility.preprocess import preprocessData, denormalize_zscore, customRegressionReport
 
-matplotlib.use('TkAgg')  # OPPURE 'Qt5Agg'
+matplotlib.use('Agg')   # OPPURE 'Qt5Agg' 'TkAgg'
 import matplotlib.pyplot as plt
 
 import time
@@ -9,30 +11,29 @@ import os
 
 from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType, LossFunctionType
-from sklearn.model_selection import train_test_split
 from SVM.utility.Search import random_search_svr, grid_search_svr
 from sklearn.preprocessing import StandardScaler
 
-# Set random seed for reproducibility
-np.random.seed(42)
+# Download data
+dataset_red = "dataset_wine/winequality-red.csv"
+dataset_white = "dataset_wine/winequality-white.csv"
 
-# Generate synthetic data
-X = np.linspace(-5, 5, 100).reshape(-1, 1)  # 60 samples
-Y = np.sin(X) + 0.2 * X ** 2 + 0.1 * np.random.randn(*X.shape)  # More complex function
+# Read the training dataset
+data_red = pd.read_csv(dataset_red, sep=';', header=0)
+data_white = pd.read_csv(dataset_white, sep=';', header=0)
 
-# Standardize data
-scaler_x = StandardScaler()
-scaler_y = StandardScaler()
+train_set, X_train, y_train, X_val, y_val, X_test, y_test = preprocessData(data_red)
 
-X_scaled = scaler_x.fit_transform(X)
-Y_scaled = scaler_y.fit_transform(Y.reshape(-1, 1)).flatten()
+print("train_X: ", X_train.shape, "\ntrain_Y: ", y_train.shape)
+print("validation_X: ", X_val.shape, "\nvalidation_Y: ", y_val.shape)
+print("test_X: ", X_test.shape, "\ntest_Y: ", y_test.shape)
 
-# Split data into training and validation sets
-X_train, X_val, y_train, y_val = train_test_split(X_scaled, Y_scaled, test_size=0.2, random_state=42)
+y_train = y_train.flatten()
+y_val = y_val.flatten()
+y_test = y_test.flatten()
 
-# Create test points for predictions
-X_test = np.linspace(-3, 3, 100).reshape(-1, 1)
-X_test_scaled = scaler_x.transform(X_test)
+print("train X shape: ", X_train.shape)
+print("train Y shape: ", y_train.shape)
 
 # -------------------------
 # Step 1: Randomized Search to Estimate Hyperparameter Ranges
@@ -42,7 +43,7 @@ print("\nPerforming Randomized Search to estimate hyperparameter ranges...")
 loss_type = LossFunctionType.EPSILON_INTENSITIVE
 
 param_grid_random = {
-    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL],  # Entrambi i kernel
+    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
     "C": np.logspace(-2, 5, 10).tolist(),  # Da 0.01 a 100000 per testare flessibilità
     "epsilon": np.linspace(0.01, 0.5, 10).tolist(),  # Evita valori troppo piccoli o grandi
     "sigma": np.linspace(0.1, 5, 10).tolist(),  # Ampio range per RBF
@@ -106,6 +107,16 @@ elif best_grid_params["kernel_type"] == KernelType.POLYNOMIAL:
         loss_function=loss_type,
         learning_rate=best_grid_params["learning rate"]
     )
+elif best_grid_params["kernel_type"] == KernelType.LINEAR:
+    svr_final = SupportVectorRegression(
+        C=best_grid_params["C"],
+        epsilon=best_grid_params["epsilon"],
+        kernel_type=KernelType.LINEAR,
+        degree=best_grid_params["degree"],
+        coef=best_grid_params["coef"],
+        loss_function=loss_type,
+        learning_rate=best_grid_params["learning rate"]
+    )
 
 # Train the model and track loss over iterations
 training_loss = svr_final.fit(X_train, y_train)
@@ -115,8 +126,7 @@ print("Final alpha values:", svr_final.alpha[:5])  # Check first 5 values
 print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
 
 # Predict and inverse transform the result
-Y_pred_final_scaled = svr_final.predict(X_test_scaled)
-Y_pred_final = scaler_y.inverse_transform(Y_pred_final_scaled.reshape(-1, 1)).flatten()
+Y_pred_val = svr_final.predict(X_val)
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
@@ -125,8 +135,8 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X, Y, color='red', label='Training Data')
-plt.plot(X_test, Y_pred_final, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.scatter(X_train, y_train, color='red', label='Training Data')
+plt.plot(X_val, Y_pred_val, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Optimized Support Vector Regression')
@@ -145,7 +155,63 @@ plt.grid(True)
 os.makedirs("plots", exist_ok=True)
 
 timestamp = time.strftime("%Y%m%d-%H%M%S")
-plt.savefig(f"plots/svr_{loss_type}_{timestamp}.png")
+plt.savefig(f"plots/svr_{loss_type}_{timestamp}_val.png")
 print("Plot saved")
 
 plt.show()
+
+customRegressionReport(y_train, Y_pred_val, ['quality'])
+
+#----------------------------------------------------------------
+# Prediction on Test set
+#----------------------------------------------------------------
+
+X_train_final = np.vstack((X_train, X_val))
+y_train_final = np.vstack((y_train, y_val))
+
+# Train the model and track loss over iterations
+training_loss = svr_final.fit(X_train_final, y_train_final)
+
+# Check if alpha changes
+print("Final alpha values:", svr_final.alpha[:5])  # Check first 5 values
+print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
+
+# Predict and inverse transform the result
+Y_pred_final_scaled = svr_final.predict(X_test)
+
+# ---------------------------------
+# Plot Results: Optimized SVR Model & Training Loss
+# ---------------------------------
+plt.figure(figsize=(12, 5))
+
+# Subplot 1: SVR Predictions
+plt.subplot(1, 2, 1)
+plt.scatter(X_train, y_train, color='red', label='Training Data')
+plt.plot(X_test, Y_pred_final_scaled, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Optimized Support Vector Regression')
+plt.legend()
+plt.grid(True)
+
+# Subplot 2: Training Loss Curve
+plt.subplot(1, 2, 2)
+plt.plot(range(len(training_loss)), training_loss, color='green', linewidth=2)
+plt.xlabel('Iteration')
+plt.ylabel('Loss')
+plt.title('Training Loss Curve')
+plt.grid(True)
+
+# Ensure the "plots" directory exists
+os.makedirs("plots", exist_ok=True)
+
+timestamp = time.strftime("%Y%m%d-%H%M%S")
+plt.savefig(f"plots/svr_{loss_type}_{timestamp}_test.png")
+print("Plot saved")
+
+plt.show()
+
+Y_pred_final = denormalize_zscore(Y_pred_final_scaled.reshape(-1, 1), train_set, target_column='quality').flatten()
+Y_train_denorm = denormalize_zscore(y_train.reshape(-1, 1), train_set, target_column='quality').flatten()
+
+customRegressionReport(Y_train_denorm, Y_pred_final, ['quality'])

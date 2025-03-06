@@ -37,6 +37,19 @@ def polinomial_kernel(x1, x2, degree=2, coef=1):
     dot_prod = np.dot(x1, x2)
     return (dot_prod + coef) ** degree
 
+def linear_kernel(x1, x2):
+    """
+    Compute the linear kernel between two vectors.
+
+    Parameters:
+    - x1: First vector (numpy array or list).
+    - x2: Second vector (numpy array or list).
+
+    Returns:
+    - The result of the dot product between x1 and x2.
+    """
+    return np.dot(x1, x2)
+
 
 def compute_kernel(x1, x2, kernel_type, **kwargs):
     """
@@ -65,6 +78,7 @@ def compute_kernel(x1, x2, kernel_type, **kwargs):
     kernel_functions = {
         KernelType.RBF: rbf_kernel,
         KernelType.POLYNOMIAL: polinomial_kernel,
+        KernelType.LINEAR: linear_kernel,
     }
 
     if kernel_type not in kernel_functions:
@@ -80,12 +94,17 @@ def compute_kernel(x1, x2, kernel_type, **kwargs):
             "degree": kwargs.get("degree", 3),
             "coef": kwargs.get("coef", 1),
         },
+        KernelType.LINEAR: {},  # No extra params for linear kernel
     }
 
     selected_params = kernel_params.get(kernel_type, {})
 
     for i in range(n1):
         for j in range(n2):
-            K[i, j] = kernel_functions[kernel_type](x1[i], x2[j], **selected_params)
+            if kernel_type == KernelType.LINEAR:
+                # For linear kernel, no need to pass any params
+                K[i, j] = kernel_functions[kernel_type](x1[i], x2[j])
+            else:
+                K[i, j] = kernel_functions[kernel_type](x1[i], x2[j], **selected_params)
 
     return K
