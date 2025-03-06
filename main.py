@@ -40,7 +40,7 @@ print("train Y shape: ", y_train.shape)
 # -------------------------
 print("\nPerforming Randomized Search to estimate hyperparameter ranges...")
 
-loss_type = LossFunctionType.EPSILON_INTENSITIVE
+loss_type = LossFunctionType.EPSILON_INSENSITIVE
 
 param_grid_random = {
     "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel

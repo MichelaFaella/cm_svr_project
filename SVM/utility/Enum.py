@@ -10,4 +10,4 @@ class KernelType(Enum):
 class LossFunctionType(Enum):
     HUBER = "humber-like loss"
     QUANTILE = "quantile loss"
-    EPSILON_INTENSITIVE = "epsilon insensitive"
+    EPSILON_INSENSITIVE = "epsilon insensitive"
