@@ -3,7 +3,7 @@ import matplotlib
 import pandas as pd
 from SVM.utility.preprocess import preprocessData, denormalize_zscore, customRegressionReport
 
-matplotlib.use('Agg')   # OPPURE 'Qt5Agg' 'TkAgg'
+matplotlib.use('Agg')  # OPPURE 'Qt5Agg' 'TkAgg'
 import matplotlib.pyplot as plt
 
 import time
@@ -12,7 +12,6 @@ import os
 from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType, LossFunctionType
 from SVM.utility.Search import random_search_svr, grid_search_svr
-from sklearn.preprocessing import StandardScaler
 
 # Download data
 dataset_red = "dataset_wine/winequality-red.csv"
@@ -44,9 +43,9 @@ loss_type = LossFunctionType.EPSILON_INSENSITIVE
 
 param_grid_random = {
     "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
-    "C": np.logspace(-2, 5, 10).tolist(),  # Da 0.01 a 100000 per testare flessibilità
-    "epsilon": np.linspace(0.01, 0.5, 10).tolist(),  # Evita valori troppo piccoli o grandi
-    "sigma": np.linspace(0.1, 5, 10).tolist(),  # Ampio range per RBF
+    "C": np.logspace(-2, 3, 5).tolist(),  # Da 0.01 a 1000 per testare flessibilità
+    "epsilon": np.linspace(0.01, 0.5, 5).tolist(),  # Evita valori troppo piccoli o grandi
+    "sigma": np.linspace(0.1, 5, 5).tolist(),  # Ampio range per RBF
     "degree": [2, 3, 4],  # Evitiamo polinomi troppo complessi
     "coef": np.linspace(0, 2.0, 5).tolist(),  # Coefficiente di bias per il kernel polinomiale
     "learning rate": np.logspace(-4, -1, 5).tolist()
@@ -61,7 +60,7 @@ print(f"Parameters: {best_random_params}, MSE: {best_random_score}")
 # -------------------------
 # Step 2: Grid Search for Fine-Tuning
 # -------------------------
-print("\n Performing Grid Search to fine-tune best hyperparameters...")
+"""print("\n Performing Grid Search to fine-tune best hyperparameters...")
 
 param_grid_fine = {
     "kernel_type": [best_random_params["kernel_type"]],  # Prendiamo il miglior kernel trovato
@@ -81,41 +80,41 @@ best_grid_params, best_grid_score = grid_search_svr(
 )
 
 print(f"\n Best result from Grid Search\n")
-print(f"Parameters: {best_grid_params}, MSE: {best_grid_score}")
+print(f"Parameters: {best_grid_params}, MSE: {best_grid_score}")"""
 
 # -------------------------
 # Step 3: Train Final Model
 # -------------------------
 print("\n Training Final SVR Model...")
 
-if best_grid_params["kernel_type"] == KernelType.RBF:
+if best_random_params["kernel_type"] == KernelType.RBF:
     svr_final = SupportVectorRegression(
-        C=best_grid_params["C"],
-        epsilon=best_grid_params["epsilon"],
+        C=best_random_params["C"],
+        epsilon=best_random_params["epsilon"],
         kernel_type=KernelType.RBF,
-        sigma=best_grid_params["sigma"],
+        sigma=best_random_params["sigma"],
         loss_function=loss_type,
-        learning_rate=best_grid_params["learning_rate"]
+        learning_rate=best_random_params["learning_rate"]
     )
-elif best_grid_params["kernel_type"] == KernelType.POLYNOMIAL:
+elif best_random_params["kernel_type"] == KernelType.POLYNOMIAL:
     svr_final = SupportVectorRegression(
-        C=best_grid_params["C"],
-        epsilon=best_grid_params["epsilon"],
+        C=best_random_params["C"],
+        epsilon=best_random_params["epsilon"],
         kernel_type=KernelType.POLYNOMIAL,
-        degree=best_grid_params["degree"],
-        coef=best_grid_params["coef"],
+        degree=best_random_params["degree"],
+        coef=best_random_params["coef"],
         loss_function=loss_type,
-        learning_rate=best_grid_params["learning rate"]
+        learning_rate=best_random_params["learning rate"]
     )
-elif best_grid_params["kernel_type"] == KernelType.LINEAR:
+elif best_random_params["kernel_type"] == KernelType.LINEAR:
     svr_final = SupportVectorRegression(
-        C=best_grid_params["C"],
-        epsilon=best_grid_params["epsilon"],
+        C=best_random_params["C"],
+        epsilon=best_random_params["epsilon"],
         kernel_type=KernelType.LINEAR,
-        degree=best_grid_params["degree"],
-        coef=best_grid_params["coef"],
+        degree=best_random_params["degree"],
+        coef=best_random_params["coef"],
         loss_function=loss_type,
-        learning_rate=best_grid_params["learning rate"]
+        learning_rate=best_random_params["learning rate"]
     )
 
 # Train the model and track loss over iterations
@@ -162,9 +161,9 @@ plt.show()
 
 customRegressionReport(y_train, Y_pred_val, ['quality'])
 
-#----------------------------------------------------------------
+# ----------------------------------------------------------------
 # Prediction on Test set
-#----------------------------------------------------------------
+# ----------------------------------------------------------------
 
 X_train_final = np.vstack((X_train, X_val))
 y_train_final = np.vstack((y_train, y_val))

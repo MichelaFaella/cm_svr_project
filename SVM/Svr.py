@@ -19,14 +19,13 @@ class SupportVectorRegression:
         self.X_train = None
         self.learning_rate = learning_rate
 
-
     def fit(self, X, Y, max_iter=100, smoothing_factor=0.9):
         self.X_train = X
         n_samples = X.shape[0]
         self.b = 0.0
 
         K = compute_kernel(X, X, kernel_type=self.kernel_type, sigma=self.sigma, degree=self.degree, coef=self.coef)
-        self.alpha = np.zeros(n_samples) # More stable because with random alpha could be outside 0 and C
+        self.alpha = np.zeros(n_samples)  # More stable because with random alpha could be outside 0 and C
 
         # Velocity help to smooth the gradient
         velocity = np.zeros_like(self.alpha)
