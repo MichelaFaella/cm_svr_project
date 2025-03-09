@@ -160,7 +160,14 @@ print("Plot saved")
 
 plt.show()
 
+print("Validation costum report norm")
 customRegressionReport(y_train, Y_pred_val, ['quality'])
+
+Y_pred_val_denorm = denormalize_zscore(Y_pred_val.reshape(-1, 1), train_set, target_column='quality').flatten()
+Y_train_denorm = denormalize_zscore(y_train.reshape(-1, 1), train_set, target_column='quality').flatten()
+
+print("Validation costum report denorm")
+customRegressionReport(Y_train_denorm, Y_pred_val_denorm, ['quality'])
 
 #----------------------------------------------------------------
 # Prediction on Test set
@@ -186,7 +193,7 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train, y_train, color='red', label='Training Data')
+plt.scatter(X_train_final, y_train_final, color='red', label='Training Data')
 plt.plot(X_test, Y_pred_final_scaled, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
 plt.xlabel('X')
 plt.ylabel('Y')
@@ -212,6 +219,7 @@ print("Plot saved")
 plt.show()
 
 Y_pred_final = denormalize_zscore(Y_pred_final_scaled.reshape(-1, 1), train_set, target_column='quality').flatten()
-Y_train_denorm = denormalize_zscore(y_train.reshape(-1, 1), train_set, target_column='quality').flatten()
+Y_train_denorm = denormalize_zscore(y_train_final.reshape(-1, 1), train_set, target_column='quality').flatten()
 
+print("Test costum report")
 customRegressionReport(Y_train_denorm, Y_pred_final, ['quality'])
