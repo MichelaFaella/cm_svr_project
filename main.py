@@ -3,7 +3,7 @@ import matplotlib
 import pandas as pd
 from SVM.utility.preprocess import preprocessData, denormalize_zscore, customRegressionReport
 
-matplotlib.use('Agg')  # OPPURE 'Qt5Agg' 'TkAgg'
+matplotlib.use('Agg')   # OPPURE 'Qt5Agg' 'TkAgg'
 import matplotlib.pyplot as plt
 
 import time
@@ -12,6 +12,7 @@ import os
 from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType, LossFunctionType
 from SVM.utility.Search import random_search_svr, grid_search_svr
+from sklearn.preprocessing import StandardScaler
 
 # Download data
 dataset_red = "dataset_wine/winequality-red.csv"
@@ -87,34 +88,34 @@ print(f"Parameters: {best_grid_params}, MSE: {best_grid_score}")"""
 # -------------------------
 print("\n Training Final SVR Model...")
 
-if best_random_params["kernel_type"] == KernelType.RBF:
+if param_grid_random["kernel_type"] == KernelType.RBF:
     svr_final = SupportVectorRegression(
-        C=best_random_params["C"],
-        epsilon=best_random_params["epsilon"],
+        C=param_grid_random["C"],
+        epsilon=param_grid_random["epsilon"],
         kernel_type=KernelType.RBF,
-        sigma=best_random_params["sigma"],
+        sigma=param_grid_random["sigma"],
         loss_function=loss_type,
-        learning_rate=best_random_params["learning_rate"]
+        learning_rate=param_grid_random["learning_rate"]
     )
-elif best_random_params["kernel_type"] == KernelType.POLYNOMIAL:
+elif param_grid_random["kernel_type"] == KernelType.POLYNOMIAL:
     svr_final = SupportVectorRegression(
-        C=best_random_params["C"],
-        epsilon=best_random_params["epsilon"],
+        C=param_grid_random["C"],
+        epsilon=param_grid_random["epsilon"],
         kernel_type=KernelType.POLYNOMIAL,
-        degree=best_random_params["degree"],
-        coef=best_random_params["coef"],
+        degree=param_grid_random["degree"],
+        coef=param_grid_random["coef"],
         loss_function=loss_type,
-        learning_rate=best_random_params["learning rate"]
+        learning_rate=param_grid_random["learning rate"]
     )
-elif best_random_params["kernel_type"] == KernelType.LINEAR:
+elif param_grid_random["kernel_type"] == KernelType.LINEAR:
     svr_final = SupportVectorRegression(
-        C=best_random_params["C"],
-        epsilon=best_random_params["epsilon"],
+        C=param_grid_random["C"],
+        epsilon=param_grid_random["epsilon"],
         kernel_type=KernelType.LINEAR,
-        degree=best_random_params["degree"],
-        coef=best_random_params["coef"],
+        degree=param_grid_random["degree"],
+        coef=param_grid_random["coef"],
         loss_function=loss_type,
-        learning_rate=best_random_params["learning rate"]
+        learning_rate=param_grid_random["learning rate"]
     )
 
 # Train the model and track loss over iterations
@@ -185,7 +186,7 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train, y_train, color='red', label='Training Data')
+plt.scatter(X_train_final, y_train_final, color='red', label='Training Data')
 plt.plot(X_test, Y_pred_final_scaled, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
 plt.xlabel('X')
 plt.ylabel('Y')
@@ -211,6 +212,7 @@ print("Plot saved")
 plt.show()
 
 Y_pred_final = denormalize_zscore(Y_pred_final_scaled.reshape(-1, 1), train_set, target_column='quality').flatten()
-Y_train_denorm = denormalize_zscore(y_train.reshape(-1, 1), train_set, target_column='quality').flatten()
+Y_train_denorm = denormalize_zscore(y_train_final.reshape(-1, 1), train_set, target_column='quality').flatten()
 
+print("Test costum report")
 customRegressionReport(Y_train_denorm, Y_pred_final, ['quality'])

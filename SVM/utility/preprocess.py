@@ -143,7 +143,7 @@ def preprocessData(
 
 # custom function to give a full report for regression
 # takes the true values of the target , the predicted values, and the target column name
-# it gives the MAE, MSE, RMSE, R2, MEE
+# it gives the MAE, MSE, RMSE and a scatter plot for the true vs predicted values
 def customRegressionReport(trueValues, predictedValues, target_name):
     # Print individual regression metrics
     mse = np.mean((predictedValues - trueValues)**2)
