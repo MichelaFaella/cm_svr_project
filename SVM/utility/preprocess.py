@@ -3,6 +3,7 @@ from sklearn.model_selection import KFold
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+import time
 
 def splitData(
     data,
@@ -115,17 +116,16 @@ def preprocessData(
     )
 
     # Normalize the training set and get its means and stds
-    train_set, train_means, train_stds = zscore_normalization(split_train_set)
+    """train_set, train_means, train_stds = zscore_normalization(split_train_set)
     # Normalize the validation set using the training set's means and stds
     split_validation_set, _, _ = zscore_normalization(
         split_validation_set, means=train_means, stds=train_stds
     )
     split_test_set, _, _ = zscore_normalization(
         split_test_set, means=train_means, stds=train_stds
-    )
-
+    )"""
     # split the training set to features and target
-    train_X, train_Y = splitToFeaturesAndTarget(train_set)
+    train_X, train_Y = splitToFeaturesAndTarget(split_train_set)
     # split the validation set to features and target
     validation_X, validation_Y = splitToFeaturesAndTarget(split_validation_set)
     # split the test set to features and target
@@ -144,10 +144,10 @@ def preprocessData(
 # custom function to give a full report for regression
 # takes the true values of the target , the predicted values, and the target column name
 # it gives the MAE, MSE, RMSE and a scatter plot for the true vs predicted values
-def customRegressionReport(trueValues, predictedValues, target_name):
+def customRegressionReport(trueValues, predictedValues, name="val"):
     # Print individual regression metrics
     mse = np.mean((predictedValues - trueValues)**2)
-    mee = np.mean(np.sqrt(np.sum((trueValues - predictedValues) ** 2, axis=1)))
+    mee = np.mean(np.sqrt(np.sum((trueValues - predictedValues) ** 2)))
     rmse = np.sqrt(mse)
 
     print(f"Mean Squared Error (MSE): {mse:.4f}")
@@ -170,6 +170,10 @@ def customRegressionReport(trueValues, predictedValues, target_name):
     plt.ylabel("Predicted Values Quality")
     plt.title("True vs Predicted Quality")
     plt.grid()
+
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    plt.savefig(f"plots/svr_costumRegression_{name}_{timestamp}.png")
+    
     plt.show()
 
 

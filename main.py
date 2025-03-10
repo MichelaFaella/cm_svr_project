@@ -13,6 +13,7 @@ from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType, LossFunctionType
 from SVM.utility.Search import random_search_svr, grid_search_svr
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 # Download data
 dataset_red = "dataset_wine/winequality-red.csv"
@@ -24,16 +25,26 @@ data_white = pd.read_csv(dataset_white, sep=';', header=0)
 
 train_set, X_train, y_train, X_val, y_val, X_test, y_test = preprocessData(data_red)
 
-print("train_X: ", X_train.shape, "\ntrain_Y: ", y_train.shape)
-print("validation_X: ", X_val.shape, "\nvalidation_Y: ", y_val.shape)
-print("test_X: ", X_test.shape, "\ntest_Y: ", y_test.shape)
+# Normalize the data
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+# Apply the same transformation to the validation and test sets
+X_val_scaled = scaler.transform(X_val)
+X_test_scaled = scaler.transform(X_test)
 
-y_train = y_train.flatten()
-y_val = y_val.flatten()
-y_test = y_test.flatten()
+y_scaler = StandardScaler()
+y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1, 1))
+# Apply the same transformation to the validation and test sets
+y_val_scaled = y_scaler.transform(y_val.reshape(-1, 1))
+y_test_scaled = y_scaler.transform(y_test.reshape(-1, 1))
 
-print("train X shape: ", X_train.shape)
-print("train Y shape: ", y_train.shape)
+print("train_X: ", X_train_scaled.shape, "\ntrain_Y: ", y_train.shape)
+print("validation_X: ", X_val_scaled.shape, "\nvalidation_Y: ", y_val.shape)
+print("test_X: ", X_test_scaled.shape, "\ntest_Y: ", y_test.shape)
+
+y_train_scaled = y_train_scaled.flatten()
+y_val_scaled = y_val_scaled.flatten()
+y_test_scaled = y_test_scaled.flatten()
 
 # -------------------------
 # Step 1: Randomized Search to Estimate Hyperparameter Ranges
@@ -43,16 +54,16 @@ print("\nPerforming Randomized Search to estimate hyperparameter ranges...")
 loss_type = LossFunctionType.EPSILON_INSENSITIVE
 
 param_grid_random = {
-    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
-    "C": np.logspace(-2, 3, 5).tolist(),  # Da 0.01 a 1000 per testare flessibilità
-    "epsilon": np.linspace(0.01, 0.5, 5).tolist(),  # Evita valori troppo piccoli o grandi
-    "sigma": np.linspace(0.1, 5, 5).tolist(),  # Ampio range per RBF
-    "degree": [2, 3, 4],  # Evitiamo polinomi troppo complessi
-    "coef": np.linspace(0, 2.0, 5).tolist(),  # Coefficiente di bias per il kernel polinomiale
-    "learning rate": np.logspace(-4, -1, 5).tolist()
+    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL], #[KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
+    "C": [0.01], #np.logspace(-2, 3, 5).tolist(),  # Da 0.01 a 1000 per testare flessibilità
+    "epsilon": [0.01], #np.linspace(0.01, 0.5, 5).tolist(),  # Evita valori troppo piccoli o grandi
+    "sigma": [3.7], #np.linspace(0.1, 5, 2).tolist(),  # Ampio range per RBF
+    "degree": [2], #[2, 3, 4],  # Evitiamo polinomi troppo complessi
+    "coef": [1.5], #np.linspace(0, 2.0, 5).tolist(),  # Coefficiente di bias per il kernel polinomiale
+    "learning_rate": [0.1] #np.logspace(-4, -1, 5).tolist()
 }
 
-best_random_params, best_random_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=10,
+best_random_params, best_random_score = random_search_svr(X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled, param_grid_random, n_iter=1,
                                                           loss_type=loss_type)
 
 print(f"\n Best result from Random Search\n")
@@ -72,7 +83,7 @@ param_grid_fine = {
     "degree": [best_random_params["degree"]] if best_random_params["kernel_type"] == KernelType.POLYNOMIAL else [None],
     "coef": np.linspace(best_random_params["coef"] * 0.9, best_random_params["coef"] * 1.1, 5).tolist() if
     best_random_params["kernel_type"] == KernelType.POLYNOMIAL else [None],  # Affiniamo coef solo per polinomiale
-    "learning rate": np.linspace(best_random_params["learning rate"] * 0.9, best_random_params["learning rate"] * 1.1,
+    "learning_rate": np.linspace(best_random_params["learning_rate"] * 0.9, best_random_params["learning_rate"] * 1.1,
                                  5).tolist()
 }
 
@@ -88,26 +99,26 @@ print(f"Parameters: {best_grid_params}, MSE: {best_grid_score}")"""
 # -------------------------
 print("\n Training Final SVR Model...")
 
-if param_grid_random["kernel_type"] == KernelType.RBF:
+if best_random_params["kernel_type"] == KernelType.RBF:
     svr_final = SupportVectorRegression(
-        C=param_grid_random["C"],
-        epsilon=param_grid_random["epsilon"],
+        C=best_random_params["C"],
+        epsilon=best_random_params["epsilon"],
         kernel_type=KernelType.RBF,
-        sigma=param_grid_random["sigma"],
+        sigma=best_random_params["sigma"],
         loss_function=loss_type,
-        learning_rate=param_grid_random["learning_rate"]
+        learning_rate=best_random_params["learning_rate"]
     )
-elif param_grid_random["kernel_type"] == KernelType.POLYNOMIAL:
+elif best_random_params["kernel_type"] == KernelType.POLYNOMIAL:
     svr_final = SupportVectorRegression(
-        C=param_grid_random["C"],
-        epsilon=param_grid_random["epsilon"],
+        C=best_random_params["C"],
+        epsilon=best_random_params["epsilon"],
         kernel_type=KernelType.POLYNOMIAL,
-        degree=param_grid_random["degree"],
-        coef=param_grid_random["coef"],
+        degree=best_random_params["degree"],
+        coef=best_random_params["coef"],
         loss_function=loss_type,
-        learning_rate=param_grid_random["learning rate"]
+        learning_rate=best_random_params["learning_rate"]
     )
-elif param_grid_random["kernel_type"] == KernelType.LINEAR:
+elif best_random_params["kernel_type"] == KernelType.LINEAR:
     svr_final = SupportVectorRegression(
         C=param_grid_random["C"],
         epsilon=param_grid_random["epsilon"],
@@ -115,18 +126,20 @@ elif param_grid_random["kernel_type"] == KernelType.LINEAR:
         degree=param_grid_random["degree"],
         coef=param_grid_random["coef"],
         loss_function=loss_type,
-        learning_rate=param_grid_random["learning rate"]
+        learning_rate=param_grid_random["learning_rate"]
     )
 
 # Train the model and track loss over iterations
-training_loss = svr_final.fit(X_train, y_train)
+training_loss = svr_final.fit(X_train_scaled, y_train_scaled)
 
 # Check if alpha changes
 print("Final alpha values:", svr_final.alpha[:5])  # Check first 5 values
 print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
 
 # Predict and inverse transform the result
-Y_pred_val = svr_final.predict(X_val)
+Y_pred_val = svr_final.predict(X_val_scaled)
+
+X_train_feature = X_train_scaled[:, 0] #???????????????????????
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
@@ -135,8 +148,8 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train, y_train, color='red', label='Training Data')
-plt.plot(X_val, Y_pred_val, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.scatter(X_train_feature, y_train_scaled, color='red', label='Training Data')  #????
+plt.plot(X_val_scaled, Y_pred_val, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Optimized Support Vector Regression')
@@ -160,14 +173,15 @@ print("Plot saved")
 
 plt.show()
 
-customRegressionReport(y_train, Y_pred_val, ['quality'])
+print("Validation costum report: ")
+customRegressionReport(y_val_scaled, Y_pred_val, name="validation")
 
 # ----------------------------------------------------------------
 # Prediction on Test set
 # ----------------------------------------------------------------
 
-X_train_final = np.vstack((X_train, X_val))
-y_train_final = np.vstack((y_train, y_val))
+X_train_final = np.vstack((X_train_scaled, X_val_scaled))
+y_train_final = np.vstack((y_train_scaled.reshape(-1, 1), y_val_scaled.reshape(-1, 1)))
 
 # Train the model and track loss over iterations
 training_loss = svr_final.fit(X_train_final, y_train_final)
@@ -177,7 +191,9 @@ print("Final alpha values:", svr_final.alpha[:5])  # Check first 5 values
 print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
 
 # Predict and inverse transform the result
-Y_pred_final_scaled = svr_final.predict(X_test)
+Y_pred_final = svr_final.predict(X_test_scaled)
+
+X_train_feature_final = X_train_final[:, 0] #??????????????????
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
@@ -186,8 +202,8 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train_final, y_train_final, color='red', label='Training Data')
-plt.plot(X_test, Y_pred_final_scaled, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.scatter(X_train_feature_final, y_train_final, color='red', label='Training Data')
+plt.plot(X_test_scaled, Y_pred_final, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Optimized Support Vector Regression')
@@ -211,8 +227,46 @@ print("Plot saved")
 
 plt.show()
 
-Y_pred_final = denormalize_zscore(Y_pred_final_scaled.reshape(-1, 1), train_set, target_column='quality').flatten()
-Y_train_denorm = denormalize_zscore(y_train_final.reshape(-1, 1), train_set, target_column='quality').flatten()
+# Denormalize predictions and training set
+X_train_final_denorm = scaler.inverse_transform(X_train_final)
+X_test_denorm = scaler.inverse_transform(X_test_scaled)
+y_train_denorm = y_scaler.inverse_transform(y_train_final.reshape(-1, 1)).flatten()
+y_test_denorm = y_scaler.inverse_transform(y_test_scaled.reshape(-1, 1)).flatten()
+
+Y_pred_final_denorm = y_scaler.inverse_transform(Y_pred_final.reshape(-1, 1)).flatten()
+
+# ---------------------------------
+# Plot Denormalized Results: Optimized SVR Model & Training Loss
+# ---------------------------------
+
+plt.figure(figsize=(12, 5))
+
+# Subplot 1: SVR Predictions
+plt.subplot(1, 2, 1)
+plt.scatter(X_train_final_denorm, y_train_denorm, color='red', label='Training Data')
+plt.plot(X_test_denorm, Y_pred_final_denorm, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.xlabel('X')
+plt.ylabel('Y')
+plt.title('Optimized Support Vector Regression')
+plt.legend()
+plt.grid(True)
+
+# Subplot 2: Training Loss Curve
+plt.subplot(1, 2, 2)
+plt.plot(range(len(training_loss)), training_loss, color='green', linewidth=2)
+plt.xlabel('Iteration')
+plt.ylabel('Loss')
+plt.title('Training Loss Curve')
+plt.grid(True)
+
+# Ensure the "plots" directory exists
+os.makedirs("plots", exist_ok=True)
+
+timestamp = time.strftime("%Y%m%d-%H%M%S")
+plt.savefig(f"plots/svr_{loss_type}_{timestamp}_test.png")
+print("Plot saved")
+
+plt.show()
 
 print("Test costum report")
-customRegressionReport(Y_train_denorm, Y_pred_final, ['quality'])
+customRegressionReport(y_test_denorm, Y_pred_final_denorm, name="test")
