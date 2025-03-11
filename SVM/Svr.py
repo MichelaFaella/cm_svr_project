@@ -1,7 +1,7 @@
 import numpy as np
 from SVM.utility.Enum import KernelType, LossFunctionType
 from SVM.utility.Kernels import compute_kernel
-from SVM.utility.LossFunction import huber_like_loss, quantile_loss, epsilon_insensitive_loss
+from SVM.utility.LossFunction import epsilon_insensitive_loss
 
 
 class SupportVectorRegression:
@@ -19,44 +19,60 @@ class SupportVectorRegression:
         self.X_train = None
         self.learning_rate = learning_rate
 
-    def fit(self, X, Y, max_iter=100, smoothing_factor=0.9):
+    def fit(self, X, Y, max_iter=100, smoothing_factor=0.9, mu=0.01):
+        """
+        Train the Support Vector Regression model using a smooth optimization approach.
+
+        Parameters:
+        - X: Training data (numpy array).
+        - Y: Target values (numpy array).
+        - max_iter: Number of training iterations.
+        - smoothing_factor: Momentum factor for accelerated gradient descent.
+        - mu: Regularization parameter to smooth the gradients.
+
+        Returns:
+        - A list containing the loss at each iteration.
+        """
+
         self.X_train = X
         n_samples = X.shape[0]
         self.b = 0.0
 
+        # Compute kernel matrix
         K = compute_kernel(X, X, kernel_type=self.kernel_type, sigma=self.sigma, degree=self.degree, coef=self.coef)
-        self.alpha = np.zeros(n_samples)  # More stable because with random alpha could be outside 0 and C
+        self.alpha = np.zeros(n_samples)  # Initialize with zero for stability
 
-        # Velocity help to smooth the gradient
+        # Initialize momentum velocity
         velocity = np.zeros_like(self.alpha)
         training_loss = []
 
         for iteration in range(max_iter):
-            gradients = self.compute_smooth_gradients(X, Y, self.alpha, epsilon=self.epsilon)
+            prev_alpha = np.copy(self.alpha)  # Store previous alpha values
+
+            # Compute smoothed gradients
+            gradients = self.compute_smooth_gradients(X, Y, self.alpha, epsilon=self.epsilon, mu=mu)
 
             if gradients is None:
-                raise ValueError("compute_smooth_gradients ha restituito None, verifica le funzioni di perdita!")
+                raise ValueError("compute_smooth_gradients returned None. Check the loss function implementation!")
 
-            # Aggiorniamo la velocità (momentum) combinando il valore precedente con il nuovo gradiente
+            # Nesterov's Accelerated Gradient update
+            self.alpha += smoothing_factor * (self.alpha - prev_alpha)
             velocity = smoothing_factor * velocity - self.learning_rate * gradients
-
-            # Aggiorniamo i coefficienti alpha usando la velocità aggiornata
             self.alpha += velocity
 
-            # Clipping of alpha
+            # Clip alpha values to stay within [0, C] bounds
             self.alpha = np.clip(self.alpha, 0, self.C)
 
+            # Compute bias term 'b' using only support vectors
             support_vector_indices = np.where((self.alpha > 1e-6) & (self.alpha < self.C))[0]
-            # There are support vector
             if len(support_vector_indices) > 0:
                 self.b = np.mean(Y[support_vector_indices] - np.dot(K[support_vector_indices], self.alpha))
             elif np.any(self.alpha > 1e-6):
                 self.b = np.mean(Y - np.dot(K, self.alpha))
             else:
-                # Se non ci sono support vectors e α è tutto zero, usa una stima basata sulla media di Y
-                self.b = np.mean(Y)
+                self.b = np.mean(Y)  # Default bias if no support vectors are found
 
-            # Calculate the loss
+            # Compute training loss
             loss = np.mean((Y - np.dot(K, self.alpha) - self.b) ** 2)
             training_loss.append(loss)
 
@@ -74,17 +90,32 @@ class SupportVectorRegression:
 
         return np.dot(K_test, self.alpha) + self.b
 
-    def compute_smooth_gradients(self, X, y, alpha, epsilon=0.1, delta=1.0):
+    def compute_smooth_gradients(self, X, y, alpha, epsilon=0.1, mu=0.01):
+        """
+        Compute the smoothed gradient for Support Vector Regression.
+
+        Parameters:
+        - X: Input data (numpy array).
+        - y: Target values (numpy array).
+        - alpha: Current weight coefficients.
+        - epsilon: Insensitivity parameter.
+        - mu: Smoothing parameter for gradient stabilization.
+
+        Returns:
+        - The computed gradient with regularization.
+        """
+
+        # Compute kernel matrix
         K = compute_kernel(X, X, kernel_type=self.kernel_type, sigma=self.sigma, degree=self.degree, coef=self.coef)
         y_pred = np.dot(K, alpha) + self.b
 
-        if self.loss_function == LossFunctionType.HUBER:
-            loss, grad = huber_like_loss(y, y_pred, epsilon, delta)
-        elif self.loss_function == LossFunctionType.EPSILON_INSENSITIVE:
-            loss, grad = epsilon_insensitive_loss(y, y_pred)
-        elif self.loss_function == LossFunctionType.QUANTILE:
-            loss, grad = quantile_loss(y, y_pred)
-        else:
-            raise ValueError("Tipo di funzione di perdita non supportata!")
+        # Compute smoothed loss and gradient
+        loss, grad = epsilon_insensitive_loss(y, y_pred, epsilon=epsilon, mu=mu)
 
-        return np.dot(K, (grad.reshape(-1, 1))).flatten()
+        if grad is None:
+            raise ValueError("Gradient computation failed in epsilon_insensitive_loss.")
+
+        # Apply a smoothing term to the gradient for stability
+        smoothing_term = mu * alpha
+        return np.dot(K, grad) - smoothing_term
+

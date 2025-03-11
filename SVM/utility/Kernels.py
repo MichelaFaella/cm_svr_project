@@ -37,6 +37,7 @@ def polinomial_kernel(x1, x2, degree=2, coef=1):
     dot_prod = np.dot(x1, x2)
     return (dot_prod + coef) ** degree
 
+
 def linear_kernel(x1, x2):
     """
     Compute the linear kernel between two vectors.

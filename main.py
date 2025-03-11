@@ -3,7 +3,7 @@ import matplotlib
 import pandas as pd
 from SVM.utility.preprocess import preprocessData, denormalize_zscore, customRegressionReport
 
-matplotlib.use('Agg')   # OPPURE 'Qt5Agg' 'TkAgg'
+matplotlib.use('Agg')  # OPPURE 'Qt5Agg' 'TkAgg'
 import matplotlib.pyplot as plt
 
 import time
@@ -54,16 +54,18 @@ print("\nPerforming Randomized Search to estimate hyperparameter ranges...")
 loss_type = LossFunctionType.EPSILON_INSENSITIVE
 
 param_grid_random = {
-    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL], #[KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
-    "C": [0.01], #np.logspace(-2, 3, 5).tolist(),  # Da 0.01 a 1000 per testare flessibilità
-    "epsilon": [0.01], #np.linspace(0.01, 0.5, 5).tolist(),  # Evita valori troppo piccoli o grandi
-    "sigma": [3.7], #np.linspace(0.1, 5, 2).tolist(),  # Ampio range per RBF
-    "degree": [2], #[2, 3, 4],  # Evitiamo polinomi troppo complessi
-    "coef": [1.5], #np.linspace(0, 2.0, 5).tolist(),  # Coefficiente di bias per il kernel polinomiale
-    "learning_rate": [0.1] #np.logspace(-4, -1, 5).tolist()
+    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL],
+    # [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
+    "C": [0.01],  # np.logspace(-2, 3, 5).tolist(),  # Da 0.01 a 1000 per testare flessibilità
+    "epsilon": [0.01],  # np.linspace(0.01, 0.5, 5).tolist(),  # Evita valori troppo piccoli o grandi
+    "sigma": [3.7],  # np.linspace(0.1, 5, 2).tolist(),  # Ampio range per RBF
+    "degree": [2],  # [2, 3, 4],  # Evitiamo polinomi troppo complessi
+    "coef": [1.5],  # np.linspace(0, 2.0, 5).tolist(),  # Coefficiente di bias per il kernel polinomiale
+    "learning_rate": [0.1]  # np.logspace(-4, -1, 5).tolist()
 }
 
-best_random_params, best_random_score = random_search_svr(X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled, param_grid_random, n_iter=1,
+best_random_params, best_random_score = random_search_svr(X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
+                                                          param_grid_random, n_iter=1,
                                                           loss_type=loss_type)
 
 print(f"\n Best result from Random Search\n")
@@ -139,7 +141,7 @@ print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
 # Predict and inverse transform the result
 Y_pred_val = svr_final.predict(X_val_scaled)
 
-X_train_feature = X_train_scaled[:, 0] #???????????????????????
+X_train_feature = X_train_scaled[:, 0]  # ???????????????????????
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
@@ -148,7 +150,7 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train_feature, y_train_scaled, color='red', label='Training Data')  #????
+plt.scatter(X_train_feature, y_train_scaled, color='red', label='Training Data')  # ????
 plt.plot(X_val_scaled, Y_pred_val, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
 plt.xlabel('X')
 plt.ylabel('Y')
@@ -193,7 +195,7 @@ print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
 # Predict and inverse transform the result
 Y_pred_final = svr_final.predict(X_test_scaled)
 
-X_train_feature_final = X_train_final[:, 0] #??????????????????
+X_train_feature_final = X_train_final[:, 0]  # ??????????????????
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
