@@ -242,9 +242,9 @@ plt.show()
 X_train_final_denorm = denormalize_zscore(X_train_final, train_set)
 X_test_denorm = denormalize_zscore(X_test, train_set)
 y_train_denorm = denormalize_zscore(y_train_final, train_set)
-y_test_denorm = denormalize_zscore(y_test, X_train).flatten()
+y_test_denorm = denormalize_zscore(y_test, train_set).flatten()
 
-Y_pred_final_denorm = denormalize_zscore(Y_pred_final, X_train).flatten()
+Y_pred_final_denorm = denormalize_zscore(Y_pred_final, train_set).flatten()
 
 # Sort validation data for a smooth plot
 sorted_idx = np.argsort(X_test_denorm[:, 0])
