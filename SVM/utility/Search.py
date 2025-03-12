@@ -6,7 +6,7 @@ import random
 from SVM.utility.Enum import LossFunctionType
 
 
-def grid_search_svr(X_train, y_train, X_val, y_val, param_grid, loss_type=LossFunctionType.HUBER):
+def grid_search_svr(X_train, y_train, X_val, y_val, param_grid, loss_type=LossFunctionType.EPSILON_INSENSITIVE):
     """
     Performs an exhaustive grid search for hyperparameter optimization.
 
@@ -45,7 +45,7 @@ def grid_search_svr(X_train, y_train, X_val, y_val, param_grid, loss_type=LossFu
             degree=params.get("degree", 3),
             coef=params.get("coef", 1),
             loss_function=loss_type,
-            learning_rate=params.get("learning rate")
+            learning_rate=params.get("learning_rate")
         )
 
         model.fit(X_train, y_train)
@@ -74,7 +74,7 @@ def grid_search_svr(X_train, y_train, X_val, y_val, param_grid, loss_type=LossFu
     return best_params, best_score
 
 
-def random_search_svr(X_train, y_train, X_val, y_val, param_grid, n_iter=10, loss_type=LossFunctionType.HUBER):
+def random_search_svr(X_train, y_train, X_val, y_val, param_grid, n_iter=10, loss_type=LossFunctionType.EPSILON_INSENSITIVE):
     """
     Performs randomized search for hyperparameter optimization.
 
@@ -116,7 +116,7 @@ def random_search_svr(X_train, y_train, X_val, y_val, param_grid, n_iter=10, los
             degree=params.get("degree", 3),
             coef=params.get("coef", 1),
             loss_function=loss_type,
-            learning_rate=params.get("learning rate")
+            learning_rate=params.get("learning_rate")
         )
 
         model.fit(X_train, y_train)

@@ -1,7 +1,7 @@
 import numpy as np
 from SVM.utility.Enum import KernelType, LossFunctionType
 from SVM.utility.Kernels import compute_kernel
-from SVM.utility.LossFunction import epsilon_insensitive_loss
+from SVM.utility.LossFunction import epsilon_insensitive_loss, epsilon_insensitive_loss_one
 
 
 class SupportVectorRegression:
@@ -19,7 +19,7 @@ class SupportVectorRegression:
         self.X_train = None
         self.learning_rate = learning_rate
 
-    def fit(self, X, Y, max_iter=100, smoothing_factor=0.9, mu=0.01):
+    def fit(self, X, Y, max_iter=50, smoothing_factor=0.9, mu=0.01):
         """
         Train the Support Vector Regression model using a smooth optimization approach.
 

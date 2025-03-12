@@ -12,8 +12,6 @@ import os
 from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType, LossFunctionType
 from SVM.utility.Search import random_search_svr, grid_search_svr
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
 
 # Download data
 dataset_red = "dataset_wine/winequality-red.csv"
@@ -25,26 +23,13 @@ data_white = pd.read_csv(dataset_white, sep=';', header=0)
 
 train_set, X_train, y_train, X_val, y_val, X_test, y_test = preprocessData(data_red)
 
-# Normalize the data
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-# Apply the same transformation to the validation and test sets
-X_val_scaled = scaler.transform(X_val)
-X_test_scaled = scaler.transform(X_test)
+print("train_X: ", X_train.shape, "\ntrain_Y: ", y_train.shape)
+print("validation_X: ", X_val.shape, "\nvalidation_Y: ", y_val.shape)
+print("test_X: ", X_test.shape, "\ntest_Y: ", y_test.shape)
 
-y_scaler = StandardScaler()
-y_train_scaled = y_scaler.fit_transform(y_train.reshape(-1, 1))
-# Apply the same transformation to the validation and test sets
-y_val_scaled = y_scaler.transform(y_val.reshape(-1, 1))
-y_test_scaled = y_scaler.transform(y_test.reshape(-1, 1))
-
-print("train_X: ", X_train_scaled.shape, "\ntrain_Y: ", y_train.shape)
-print("validation_X: ", X_val_scaled.shape, "\nvalidation_Y: ", y_val.shape)
-print("test_X: ", X_test_scaled.shape, "\ntest_Y: ", y_test.shape)
-
-y_train_scaled = y_train_scaled.flatten()
-y_val_scaled = y_val_scaled.flatten()
-y_test_scaled = y_test_scaled.flatten()
+y_train = y_train.flatten()
+y_val = y_val.flatten()
+y_test = y_test.flatten()
 
 # -------------------------
 # Step 1: Randomized Search to Estimate Hyperparameter Ranges
@@ -64,7 +49,7 @@ param_grid_random = {
     "learning_rate": [0.1]  # np.logspace(-4, -1, 5).tolist()
 }
 
-best_random_params, best_random_score = random_search_svr(X_train_scaled, y_train_scaled, X_val_scaled, y_val_scaled,
+best_random_params, best_random_score = random_search_svr(X_train, y_train, X_val, y_val,
                                                           param_grid_random, n_iter=1,
                                                           loss_type=loss_type)
 
@@ -132,16 +117,25 @@ elif best_random_params["kernel_type"] == KernelType.LINEAR:
     )
 
 # Train the model and track loss over iterations
-training_loss = svr_final.fit(X_train_scaled, y_train_scaled)
+training_loss = svr_final.fit(X_train, y_train)
 
 # Check if alpha changes
 print("Final alpha values:", svr_final.alpha[:5])  # Check first 5 values
 print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
 
 # Predict and inverse transform the result
-Y_pred_val = svr_final.predict(X_val_scaled)
+Y_pred_val = svr_final.predict(X_val)
 
-X_train_feature = X_train_scaled[:, 0]  # ???????????????????????
+# Sort validation data for a smooth plot
+sorted_idx = np.argsort(X_val[:, 0])
+X_val_sorted = X_val[sorted_idx]
+Y_pred_val_sorted = Y_pred_val[sorted_idx]
+y_val_sorted = y_val[sorted_idx]
+
+# Compute upper and lower bounds of the epsilon tube
+epsilon = best_random_params["epsilon"]
+upper_bound = Y_pred_val + epsilon
+lower_bound = Y_pred_val - epsilon
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
@@ -150,11 +144,12 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train_feature, y_train_scaled, color='red', label='Training Data')  # ????
-plt.plot(X_val_scaled, Y_pred_val, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.scatter(X_val_sorted[:, 0], y_val_sorted, color='darkorange', label='Validation Data')
+plt.plot(X_val_sorted[:, 0], Y_pred_val_sorted, color='grey', lw=2, label='SVR Model')
+plt.fill_between(X_val_sorted[:, 0], lower_bound, upper_bound, color='lightblue', alpha=0.3, label='Epsilon Tube')
 plt.xlabel('X')
 plt.ylabel('Y')
-plt.title('Optimized Support Vector Regression')
+plt.title('Support Vector Regression with Epsilon Tube')
 plt.legend()
 plt.grid(True)
 
@@ -176,14 +171,19 @@ print("Plot saved")
 plt.show()
 
 print("Validation costum report: ")
-customRegressionReport(y_val_scaled, Y_pred_val, name="validation")
+customRegressionReport(y_val, Y_pred_val, name="validation")
+
+print("Validation costum report denormalized: ")
+y_val_denorm = denormalize_zscore(y_val, train_set)
+Y_pred_val_denorm = denormalize_zscore(Y_pred_val, train_set)
+customRegressionReport(y_val_denorm, Y_pred_val_denorm, name="validation_denorm")
 
 # ----------------------------------------------------------------
 # Prediction on Test set
 # ----------------------------------------------------------------
 
-X_train_final = np.vstack((X_train_scaled, X_val_scaled))
-y_train_final = np.vstack((y_train_scaled.reshape(-1, 1), y_val_scaled.reshape(-1, 1)))
+X_train_final = np.vstack((X_train, X_val))
+y_train_final = np.vstack((y_train.reshape(-1, 1), y_val.reshape(-1, 1))).flatten()
 
 # Train the model and track loss over iterations
 training_loss = svr_final.fit(X_train_final, y_train_final)
@@ -193,9 +193,18 @@ print("Final alpha values:", svr_final.alpha[:5])  # Check first 5 values
 print("Norm of alpha:", np.linalg.norm(svr_final.alpha))
 
 # Predict and inverse transform the result
-Y_pred_final = svr_final.predict(X_test_scaled)
+Y_pred_final = svr_final.predict(X_test)
 
-X_train_feature_final = X_train_final[:, 0]  # ??????????????????
+# Sort validation data for a smooth plot
+sorted_idx = np.argsort(X_test[:, 0])
+X_test_sorted = X_test[sorted_idx]
+Y_pred_test_sorted = Y_pred_final[sorted_idx]
+y_test_sorted = y_test[sorted_idx]
+
+# Compute upper and lower bounds of the epsilon tube
+epsilon = best_random_params["epsilon"]
+upper_bound_test = Y_pred_final + epsilon
+lower_bound_test = Y_pred_final - epsilon
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
@@ -204,8 +213,9 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train_feature_final, y_train_final, color='red', label='Training Data')
-plt.plot(X_test_scaled, Y_pred_final, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.scatter(X_test_sorted[:, 0], y_test_sorted, color='darkorange', label='Validation Data')
+plt.plot(X_test_sorted[:, 0], Y_pred_test_sorted, color='navy', lw=2, label='SVR Model')
+plt.fill_between(X_test_sorted[:, 0], lower_bound_test, upper_bound_test, color='lightblue', alpha=0.3, label='Epsilon Tube')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Optimized Support Vector Regression')
@@ -230,12 +240,22 @@ print("Plot saved")
 plt.show()
 
 # Denormalize predictions and training set
-X_train_final_denorm = scaler.inverse_transform(X_train_final)
-X_test_denorm = scaler.inverse_transform(X_test_scaled)
-y_train_denorm = y_scaler.inverse_transform(y_train_final.reshape(-1, 1)).flatten()
-y_test_denorm = y_scaler.inverse_transform(y_test_scaled.reshape(-1, 1)).flatten()
+X_train_final_denorm = denormalize_zscore(X_train_final, train_set)
+X_test_denorm = denormalize_zscore(X_test, train_set)
+y_train_denorm = denormalize_zscore(y_train_final, train_set)
+y_test_denorm = denormalize_zscore(y_test, X_train).flatten()
 
-Y_pred_final_denorm = y_scaler.inverse_transform(Y_pred_final.reshape(-1, 1)).flatten()
+Y_pred_final_denorm = denormalize_zscore(Y_pred_final, X_train).flatten()
+
+# Sort validation data for a smooth plot
+sorted_idx = np.argsort(X_test_denorm[:, 0])
+X_test_sorted_denorm = X_test_denorm[sorted_idx]
+Y_pred_test_sorted_denorm = Y_pred_final_denorm[sorted_idx]
+y_test_sorted_denorm = y_test_denorm[sorted_idx]
+
+# Compute upper and lower bounds of the epsilon tube
+upper_bound_test_denorm = Y_pred_final_denorm + epsilon
+lower_bound_test_denorm = Y_pred_final_denorm - epsilon
 
 # ---------------------------------
 # Plot Denormalized Results: Optimized SVR Model & Training Loss
@@ -245,8 +265,9 @@ plt.figure(figsize=(12, 5))
 
 # Subplot 1: SVR Predictions
 plt.subplot(1, 2, 1)
-plt.scatter(X_train_final_denorm, y_train_denorm, color='red', label='Training Data')
-plt.plot(X_test_denorm, Y_pred_final_denorm, color='blue', linestyle='dashed', linewidth=2, label='Optimized SVR Model')
+plt.scatter(X_test_sorted_denorm[:, 0], y_test_sorted_denorm, color='darkorange', label='Validation Data')
+plt.plot(X_test_sorted_denorm[:, 0], Y_pred_test_sorted_denorm, color='navy', lw=2, label='SVR Model')
+plt.fill_between(X_test_sorted_denorm[:, 0], lower_bound_test_denorm, upper_bound_test_denorm, color='lightblue', alpha=0.3, label='Epsilon Tube')
 plt.xlabel('X')
 plt.ylabel('Y')
 plt.title('Optimized Support Vector Regression')
