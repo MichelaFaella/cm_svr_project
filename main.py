@@ -39,18 +39,17 @@ print("\nPerforming Randomized Search to estimate hyperparameter ranges...")
 loss_type = LossFunctionType.EPSILON_INSENSITIVE
 
 param_grid_random = {
-    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL],
-    # [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
-    "C": [0.01],  # np.logspace(-2, 3, 5).tolist(),  # Da 0.01 a 1000 per testare flessibilità
-    "epsilon": [0.01],  # np.linspace(0.01, 0.5, 5).tolist(),  # Evita valori troppo piccoli o grandi
-    "sigma": [3.7],  # np.linspace(0.1, 5, 2).tolist(),  # Ampio range per RBF
-    "degree": [2],  # [2, 3, 4],  # Evitiamo polinomi troppo complessi
-    "coef": [1.5],  # np.linspace(0, 2.0, 5).tolist(),  # Coefficiente di bias per il kernel polinomiale
-    "learning_rate": [0.1]  # np.logspace(-4, -1, 5).tolist()
+    "kernel_type": [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],  # Entrambi i kernel
+    "C": np.logspace(-2, 3, 5).tolist(),  # Da 0.01 a 1000 per testare flessibilità
+    "epsilon": np.linspace(0.01, 0.5, 5).tolist(),  # Evita valori troppo piccoli o grandi
+    "sigma": np.linspace(0.1, 5, 2).tolist(),  # Ampio range per RBF
+    "degree": [2, 3, 4],  # Evitiamo polinomi troppo complessi
+    "coef": np.linspace(0, 2.0, 5).tolist(),  # Coefficiente di bias per il kernel polinomiale
+    "learning_rate": np.logspace(-4, -1, 5).tolist()
 }
 
 best_random_params, best_random_score = random_search_svr(X_train, y_train, X_val, y_val,
-                                                          param_grid_random, n_iter=1,
+                                                          param_grid_random, n_iter=10,
                                                           loss_type=loss_type)
 
 print(f"\n Best result from Random Search\n")
@@ -107,13 +106,13 @@ elif best_random_params["kernel_type"] == KernelType.POLYNOMIAL:
     )
 elif best_random_params["kernel_type"] == KernelType.LINEAR:
     svr_final = SupportVectorRegression(
-        C=param_grid_random["C"],
-        epsilon=param_grid_random["epsilon"],
+        C=best_random_params["C"],
+        epsilon=best_random_params["epsilon"],
         kernel_type=KernelType.LINEAR,
-        degree=param_grid_random["degree"],
-        coef=param_grid_random["coef"],
+        degree=best_random_params["degree"],
+        coef=best_random_params["coef"],
         loss_function=loss_type,
-        learning_rate=param_grid_random["learning_rate"]
+        learning_rate=best_random_params["learning_rate"]
     )
 
 # Train the model and track loss over iterations
