@@ -1,121 +1,182 @@
 import numpy as np
-from SVM.utility.Enum import KernelType, LossFunctionType
+from SVM.utility.Enum import KernelType
 from SVM.utility.Kernels import compute_kernel
-from SVM.utility.LossFunction import epsilon_insensitive_loss, epsilon_insensitive_loss_one
 
 
 class SupportVectorRegression:
-    def __init__(self, C=1.0, epsilon=0.1, kernel_type=KernelType.RBF, loss_function=LossFunctionType.HUBER, sigma=1.0,
-                 degree=3, coef=1, learning_rate=0.1):
+    def __init__(self, C=1.0, epsilon=0.1, kernel_type=KernelType.RBF, sigma=1.0,
+                 degree=3, coef=1, learning_rate=0.01, momentum=0.9, tol=1e-7):
+        """
+        Initialize the Support Vector Regression model parameters.
+
+        Parameters:
+        - C: Regularization parameter (controls trade-off between model complexity and tolerance to violations)
+        - epsilon: Width of the epsilon-insensitive zone
+        - kernel_type: The type of kernel to use (Linear, Polynomial, or RBF)
+        - sigma: Parameter for the RBF kernel (controls width of Gaussian)
+        - degree: Degree of the polynomial kernel (if used)
+        - coef: Coefficient term in the polynomial kernel
+        - learning_rate: Learning rate for gradient updates
+        - momentum: Momentum term for Nesterov acceleration
+        - tol: Convergence tolerance for stopping criterion
+        """
         self.C = C
         self.epsilon = epsilon
         self.kernel_type = kernel_type
-        self.loss_function = loss_function
         self.sigma = sigma
         self.degree = degree
         self.coef = coef
-        self.alpha = None
-        self.b = None
-        self.X_train = None
         self.learning_rate = learning_rate
+        self.momentum = momentum
+        self.tol = tol
+        self.beta = None  # Dual variables in compact form (β)
+        self.b = None  # Bias term
+        self.X_train = None  # Training set features
+        self.mu = None  # Smoothing parameter for smoothed gradient
 
-    def fit(self, X, Y, max_iter=100, smoothing_factor=0.9, mu=0.01):
+    def fit(self, X, Y, max_iter=1000):
         """
-        Train the Support Vector Regression model using a smooth optimization approach.
+        Train the SVR model using Nesterov's smoothed gradient method.
 
         Parameters:
-        - X: Training data (numpy array).
-        - Y: Target values (numpy array).
-        - max_iter: Number of training iterations.
-        - smoothing_factor: Momentum factor for accelerated gradient descent.
-        - mu: Regularization parameter to smooth the gradients.
+        - X: Training input data (numpy array)
+        - Y: Target values (numpy array)
+        - max_iter: Maximum number of optimization iterations
 
         Returns:
-        - A list containing the loss at each iteration.
+        - training_loss: List of dual objective values (Q_mu) at each iteration
         """
-
         self.X_train = X
         n_samples = X.shape[0]
         self.b = 0.0
 
-        # Compute kernel matrix
+        # Compute the kernel matrix between all training points
         K = compute_kernel(X, X, kernel_type=self.kernel_type, sigma=self.sigma, degree=self.degree, coef=self.coef)
-        self.alpha = np.zeros(n_samples)  # Initialize with zero for stability
 
-        # Initialize momentum velocity
-        velocity = np.zeros_like(self.alpha)
+        # Initialize dual variables β and momentum velocity vector
+        self.beta = np.zeros(n_samples)
+        velocity = np.zeros_like(self.beta)
+
+        # Compute the smoothing parameter μ according to theory: μ = ε / (N * C²)
+        self.mu = self.epsilon / (n_samples * (self.C ** 2))
+
         training_loss = []
 
         for iteration in range(max_iter):
-            prev_alpha = np.copy(self.alpha)  # Store previous alpha values
+            prev_beta = np.copy(self.beta)
 
-            # Compute smoothed gradients
-            gradients = self.compute_smooth_gradients(X, Y, self.alpha, epsilon=self.epsilon, mu=mu)
+            # Nesterov extrapolation step (predictive step)
+            y_t = self.beta + self.momentum * (self.beta - prev_beta)
 
-            if gradients is None:
-                raise ValueError("compute_smooth_gradients returned None. Check the loss function implementation!")
+            # Compute the smoothed gradient at y_t
+            grad_y_t = self.compute_smooth_gradient(K, Y, y_t)
 
-            # Nesterov's Accelerated Gradient update
-            self.alpha += smoothing_factor * (self.alpha - prev_alpha)
-            velocity = smoothing_factor * velocity - self.learning_rate * gradients
-            self.alpha += velocity
+            # Update step with Nesterov momentum
+            velocity = self.momentum * velocity - self.learning_rate * grad_y_t
+            self.beta = y_t + velocity
 
-            # Clip alpha values to stay within [0, C] bounds
-            self.alpha = np.clip(self.alpha, 0, self.C)
+            # Project β values to the feasible box constraints: -C ≤ β ≤ C
+            self.beta = np.clip(self.beta, -self.C, self.C)
 
-            # Compute bias term 'b' using only support vectors
-            support_vector_indices = np.where((self.alpha > 1e-6) & (self.alpha < self.C))[0]
-            if len(support_vector_indices) > 0:
-                self.b = np.mean(Y[support_vector_indices] - np.dot(K[support_vector_indices], self.alpha))
-            elif np.any(self.alpha > 1e-6):
-                self.b = np.mean(Y - np.dot(K, self.alpha))
+            # Enforce the sum(β) = 0 constraint by removing the mean
+            self.beta -= np.mean(self.beta)
+
+            # Compute the bias term b using the support vectors
+            support_indices = np.where((np.abs(self.beta) > 1e-6) & (np.abs(self.beta) < self.C))[0]
+            if len(support_indices) > 0:
+                self.b = np.mean(Y[support_indices] - np.dot(K[support_indices], self.beta))
             else:
-                self.b = np.mean(Y)  # Default bias if no support vectors are found
+                # Fallback in case there are no support vectors found
+                self.b = np.mean(Y - np.dot(K, self.beta))
 
-            # Compute training loss
-            loss = np.mean((Y - np.dot(K, self.alpha) - self.b) ** 2)
-            training_loss.append(loss)
+            # Compute the smoothed dual objective function Q_mu for monitoring
+            Q_mu = np.sum(Y * self.beta) - self.epsilon * np.sum(
+                self.smooth_abs(self.beta)) - 0.5 * self.beta @ K @ self.beta
+            training_loss.append(Q_mu)
 
+            # Check for convergence based on change in β
+            if np.linalg.norm(self.beta - prev_beta) < self.tol:
+                print(f"Converged at iteration {iteration}")
+                break
+
+            # Print progress every 10 iterations
             if iteration % 10 == 0:
-                print(f"Iteration {iteration}, Loss: {loss:.4f}")
+                print(f"Iteration {iteration}, Q_mu: {Q_mu:.6f}")
 
         return training_loss
 
     def predict(self, X_test):
-        if self.alpha is None or self.b is None:
-            raise ValueError("Model has not been trained yet.")
-
-        K_test = compute_kernel(X_test, self.X_train, kernel_type=self.kernel_type,
-                                sigma=self.sigma, degree=self.degree, coef=self.coef)
-
-        return np.dot(K_test, self.alpha) + self.b
-
-    def compute_smooth_gradients(self, X, y, alpha, epsilon=0.1, mu=0.01):
         """
-        Compute the smoothed gradient for Support Vector Regression.
+        Predict output values for new input samples.
 
         Parameters:
-        - X: Input data (numpy array).
-        - y: Target values (numpy array).
-        - alpha: Current weight coefficients.
-        - epsilon: Insensitivity parameter.
-        - mu: Smoothing parameter for gradient stabilization.
+        - X_test: Test input data (numpy array)
 
         Returns:
-        - The computed gradient with regularization.
+        - Predicted target values (numpy array)
         """
+        if self.beta is None or self.b is None:
+            raise ValueError("The model has not been trained yet.")
 
-        # Compute kernel matrix
-        K = compute_kernel(X, X, kernel_type=self.kernel_type, sigma=self.sigma, degree=self.degree, coef=self.coef)
-        y_pred = np.dot(K, alpha) + self.b
+        # Compute kernel between test samples and training samples
+        K_test = compute_kernel(X_test, self.X_train, kernel_type=self.kernel_type,
+                                sigma=self.sigma, degree=self.degree, coef=self.coef)
+        return K_test @ self.beta + self.b
 
-        # Compute smoothed loss and gradient
-        loss, grad = epsilon_insensitive_loss(y, y_pred, epsilon=epsilon, mu=mu)
+    def smooth_abs(self, x):
+        """
+        Smoothed approximation of the absolute value function (fμ(x)):
 
-        if grad is None:
-            raise ValueError("Gradient computation failed in epsilon_insensitive_loss.")
+        fμ(x) = (x²)/(2μ) if |x| ≤ μ
+        fμ(x) = |x| - (μ/2) if |x| > μ
 
-        # Apply a smoothing term to the gradient for stability
-        smoothing_term = mu * alpha
-        return np.dot(K, grad) - smoothing_term
+        Parameters:
+        - x: input array
 
+        Returns:
+        - array with smoothed absolute values
+        """
+        abs_x = np.abs(x)
+        smooth_val = np.where(
+            abs_x <= self.mu,
+            (x ** 2) / (2 * self.mu),
+            abs_x - (self.mu / 2)
+        )
+        return smooth_val
+
+    def smooth_abs_derivative(self, x):
+        """
+        Derivative of the smoothed absolute value function (fμ'(x)):
+
+        fμ'(x) = x/μ if |x| ≤ μ
+        fμ'(x) = sign(x) if |x| > μ
+
+        Parameters:
+        - x: input array
+
+        Returns:
+        - derivative values (array)
+        """
+        abs_x = np.abs(x)
+        grad = np.where(
+            abs_x <= self.mu,
+            x / self.mu,
+            np.sign(x)
+        )
+        return grad
+
+    def compute_smooth_gradient(self, K, d, beta):
+        """
+        Compute the gradient of the smoothed dual objective Qμ(β):
+
+        ∇Qμ(β) = d - ε * fμ'(β) - K * β
+
+        Parameters:
+        - K: kernel matrix (precomputed)
+        - d: target values vector
+        - beta: current value of dual variables
+
+        Returns:
+        - gradient vector
+        """
+        return d - self.epsilon * self.smooth_abs_derivative(beta) - K @ beta

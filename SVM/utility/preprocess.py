@@ -1,3 +1,5 @@
+import os
+
 from matplotlib import pyplot as plt
 from sklearn.model_selection import KFold
 import numpy as np
@@ -5,8 +7,9 @@ import pandas as pd
 from sklearn import metrics
 import time
 
+
 def splitData(
-    data,
+        data,
 ):
     """
     Split data into training, validation and test sets.
@@ -49,6 +52,7 @@ def splitData(
 
     return split_train_set_df, split_validation_set_df, split_test_set_df
 
+
 # function to split data to features and target
 # pass the name of the target columns
 def splitToFeaturesAndTarget(data, target_column="quality"):
@@ -56,6 +60,7 @@ def splitToFeaturesAndTarget(data, target_column="quality"):
     X = data.drop(target_column, axis=1).values.tolist()
     Y = data[target_column].values.tolist()
     return X, Y
+
 
 # function to perform Zscore normalization
 def zscore_normalization(data, means=None, stds=None):
@@ -79,6 +84,7 @@ def zscore_normalization(data, means=None, stds=None):
 
     return data_normalized, means, stds
 
+
 def denormalize_zscore(predictions, data):
     """
     Denormalizes the predicted values back to the original scale using Z-score normalization.
@@ -100,6 +106,7 @@ def denormalize_zscore(predictions, data):
     denorm_predictions = predictions * std + mean
 
     return denorm_predictions
+
 
 ## function to perform MinMax normalization
 def min_max_normalization(data, min_vals=None, max_vals=None):
@@ -144,7 +151,7 @@ def min_max_denormalization(predictions, data, target_columns):
         min_value = target_data[target_column].min()
         max_value = target_data[target_column].max()
         denorm_predictions[:, idx] = (
-            predictions[:, idx] * (max_value - min_value) + min_value
+                predictions[:, idx] * (max_value - min_value) + min_value
         )
 
     return denorm_predictions
@@ -156,7 +163,7 @@ def min_max_denormalization(predictions, data, target_columns):
 # 4. split training data to X and Y
 # 5. split validation data to X and Y
 def preprocessData(
-    data
+        data
 ):
     # split the data to training and validation
     split_train_set, split_validation_set, split_test_set = (
@@ -182,46 +189,41 @@ def preprocessData(
     return (
         train_set,
         np.array(train_X),
-        np.array(train_Y).reshape(-1,1),
+        np.array(train_Y).reshape(-1, 1),
         np.array(validation_X),
-        np.array(validation_Y).reshape(-1,1),
+        np.array(validation_Y).reshape(-1, 1),
         np.array(test_X),
-        np.array(test_Y).reshape(-1,1)
+        np.array(test_Y).reshape(-1, 1)
     )
+
 
 # custom function to give a full report for regression
 # takes the true values of the target , the predicted values, and the target column name
 # it gives the MAE, MSE, RMSE and a scatter plot for the true vs predicted values
 def customRegressionReport(trueValues, predictedValues, name="val"):
-    # Print individual regression metrics
-    mse = np.mean((predictedValues - trueValues)**2)
-    mee = np.mean(np.sqrt(np.sum((trueValues - predictedValues) ** 2)))
+    # Compute metrics
+    mse = np.mean((predictedValues - trueValues) ** 2)
+    mee = np.mean(np.abs(predictedValues - trueValues))  # Corretto!
     rmse = np.sqrt(mse)
 
     print(f"Mean Squared Error (MSE): {mse:.4f}")
     print(f"Mean Euclidean Error (MEE): {mee:.4f}")
     print(f"Root Mean Squared Error (RMSE): {rmse:.4f}")
 
-    # Visualization: scatter plots for predictions vs true values
-    # General scatter plot if no target names are provided
+    # Scatter plot true vs predicted
     plt.figure(figsize=(6, 6))
-    # Min and max for scatter plots
     min_val = min(trueValues.min(), predictedValues.min())
     max_val = max(trueValues.max(), predictedValues.max())
 
     plt.scatter(trueValues, predictedValues, alpha=0.5, color="blue", label="Predicted Values")
-    plt.plot(
-        [min_val, max_val], [min_val, max_val], color="red", linestyle="--", label="Ideal Fit (y=x)"
-    )  # Line y = x
-
+    plt.plot([min_val, max_val], [min_val, max_val], color="red", linestyle="--", label="Ideal Fit (y=x)")
     plt.xlabel("True Values Quality")
     plt.ylabel("Predicted Values Quality")
-    plt.title("True vs Predicted Quality")
-    plt.grid()
+    plt.title(f"True vs Predicted Quality ({name})")
+    plt.grid(True)
+    plt.legend()
 
+    os.makedirs("plots", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    plt.savefig(f"plots/svr_costumRegression_{name}_{timestamp}.png")
-    
+    plt.savefig(f"plots/svr_customRegression_{name}_{timestamp}.png")
     plt.show()
-
-
