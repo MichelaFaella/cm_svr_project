@@ -41,7 +41,7 @@ param_grid_random = {
     "momentum": [0.9, 0.95, 0.98]  # Different momentum levels to help optimization
 }
 
-best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=15)
+best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=30)
 print(f"\nBest hyperparameters found: {best_params}")
 print(f"Validation MSE of best config: {best_score}")
 
