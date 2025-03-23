@@ -32,13 +32,13 @@ y_test = y_test.flatten()
 print("Starting random hyperparameter search for SVR...")
 param_grid_random = {
     "kernel_type": [KernelType.RBF],
-    "C": [0.01, 0.05, 0.1, 0.3],  # Stronger regularization (smaller C)
-    "epsilon": [0.12, 0.15, 0.2, 0.25],  # Wider epsilon tube for noise tolerance
-    "sigma": [1.2, 1.5, 2.0, 2.5],  # Wider Gaussian kernels to prevent overfitting
-    "degree": [3],  # Fixed for polynomial kernel (not used in RBF)
-    "coef": [0.0],  # Irrelevant for RBF kernel
-    "learning_rate": [0.0005, 0.001],  # Smaller learning rates for stability
-    "momentum": [0.9, 0.95, 0.98]  # Higher momentum to escape local minima
+    "C": [0.01, 0.05, 0.1, 0.3, 1, 3],  # Extended range: low to moderate values for flexibility
+    "epsilon": [0.12, 0.15, 0.2, 0.25],  # Wide tube to tolerate noise
+    "sigma": [1.2, 1.5, 2.0, 2.5],  # Smooth kernels with various widths
+    "degree": [3],  # Fixed for polynomial (not used here)
+    "coef": [0.0],  # Irrelevant for RBF, kept for completeness
+    "learning_rate": [0.0005, 0.001],  # Small learning rates for stable convergence
+    "momentum": [0.9, 0.95, 0.98]  # Different momentum levels to help optimization
 }
 
 best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=15)
