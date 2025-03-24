@@ -216,10 +216,21 @@ def customRegressionReport(trueValues, predictedValues, name="val"):
     max_val = max(trueValues.max(), predictedValues.max())
 
     plt.scatter(trueValues, predictedValues, alpha=0.5, color="blue", label="Predicted Values")
-    plt.plot([min_val, max_val], [min_val, max_val], color="red", linestyle="--", label="Ideal Fit (y=x)")
+    plt.scatter(trueValues, trueValues, alpha=0.5, color="green", label="True Values")
+    
+    # Adding labels to points if provided
+    if labels is not None:
+        for i, label in enumerate(labels):
+            plt.annotate(label, (trueValues[i], predictedValues[i]), fontsize=8, alpha=0.7)
+
+    plt.plot(
+        [min_val, max_val], [min_val, max_val], color="red", linestyle="--", label="Ideal Fit (y=x)"
+    )  # Line y = x
+
     plt.xlabel("True Values Quality")
     plt.ylabel("Predicted Values Quality")
     plt.title(f"True vs Predicted Quality ({name})")
+    plt.legend()
     plt.grid(True)
     plt.legend()
 
