@@ -99,7 +99,7 @@ def denormalize_zscore(predictions, data):
     denorm_predictions = predictions.copy()
 
     # Select the columns of interest for denormalization
-    target_data = data['quality']
+    target_data = data['price']
 
     mean = target_data.mean()
     std = target_data.std()
@@ -107,61 +107,16 @@ def denormalize_zscore(predictions, data):
 
     return denorm_predictions
 
-
-## function to perform MinMax normalization
-def min_max_normalization(data, min_vals=None, max_vals=None):
-    data_normalized = data.copy()
-    # Select numeric columns only for normalization
-    numeric_data = data_normalized.select_dtypes(include=["float64", "int64"])
-
-    if min_vals is None or max_vals is None:
-        # Calculate min and max from the training data
-        min_vals = numeric_data.min()
-        max_vals = numeric_data.max()
-
-    # Normalize each numeric column separately using the min-max formula
-    normalized_data = (numeric_data - min_vals) / (max_vals - min_vals)
-
-    # Rejoin with non-numeric columns if needed
-    non_numeric_data = data.select_dtypes(exclude=["float64", "int64"])
-    final_data = pd.concat([non_numeric_data, normalized_data], axis=1)
-
-    return final_data, min_vals, max_vals
-
-
-## function to denormalize the predictions values for the ML-CUP24-TS.csv file
-def min_max_denormalization(predictions, data, target_columns):
-    """
-    Denormalizes the predicted values back to the original scale.
-
-    Parameters:
-    - predictions: The normalized predicted values.
-    - data: The original data (used to get min/max values for denormalization).
-    - target_columns: List of target columns (e.g., ['TARGET_x', 'TARGET_y', 'TARGET_z']).
-    """
-
-    # Initialize a copy of the predictions array
-    denorm_predictions = predictions.copy()
-
-    # Select the columns of interest for denormalization
-    target_data = data[target_columns]
-
-    # Denormalize the predictions for each target column
-    for idx, target_column in enumerate(target_columns):
-        min_value = target_data[target_column].min()
-        max_value = target_data[target_column].max()
-        denorm_predictions[:, idx] = (
-                predictions[:, idx] * (max_value - min_value) + min_value
-        )
-
-    return denorm_predictions
-
+def denormalize_price(predictions, y_mean, y_std):
+    y_mean = y_mean.values[0] if isinstance(y_mean, pd.Series) else y_mean
+    y_std = y_std.values[0] if isinstance(y_std, pd.Series) else y_std
+    return predictions * y_std + y_mean
 
 # Perform Preprocessing on the data
-# 2. applying normalization
-# 3. split the data to training and validation
-# 4. split training data to X and Y
-# 5. split validation data to X and Y
+# 1. split the data to training and validation
+# 2. split training data to X and Y
+# 3. split validation data to X and Y
+# 4. applying normalization
 def preprocessData(
         data
 ):
@@ -170,24 +125,23 @@ def preprocessData(
         splitData(data)
     )
 
-    # Normalize the training set and get its means and stds
-    train_set, train_means, train_stds = zscore_normalization(split_train_set)
-    # Normalize the validation set using the training set's means and stds
-    split_validation_set, _, _ = zscore_normalization(
-        split_validation_set, means=train_means, stds=train_stds
-    )
-    split_test_set, _, _ = zscore_normalization(
-        split_test_set, means=train_means, stds=train_stds
-    )
     # split the training set to features and target
-    train_X, train_Y = splitToFeaturesAndTarget(train_set)
+    train_X, train_Y = splitToFeaturesAndTarget(split_train_set)
     # split the validation set to features and target
     validation_X, validation_Y = splitToFeaturesAndTarget(split_validation_set)
     # split the test set to features and target
     test_X, test_Y = splitToFeaturesAndTarget(split_test_set)
 
+    train_X = pd.DataFrame(train_X)
+    validation_X = pd.DataFrame(validation_X)
+    test_X = pd.DataFrame(test_X)
+
+    #normalize features
+    train_X, train_means, train_stds = zscore_normalization(train_X)
+    validation_X, _, _ = zscore_normalization(validation_X, means=train_means, stds=train_stds)
+    test_X, _, _ = zscore_normalization(test_X, means=train_means, stds=train_stds)
+
     return (
-        train_set,
         np.array(train_X),
         np.array(train_Y).reshape(-1, 1),
         np.array(validation_X),
@@ -196,11 +150,43 @@ def preprocessData(
         np.array(test_Y).reshape(-1, 1)
     )
 
+def preprocessData_d(data):
+
+    # Split the data
+    split_train_set, split_validation_set, split_test_set = splitData(data)
+
+    # Extract target variable
+    train_Y = split_train_set["price"]
+    validation_Y = split_validation_set["price"]
+    test_Y = split_test_set["price"]
+
+    # Drop categorical and target columns from features
+    train_X = split_train_set.drop(["price"], axis=1)
+    validation_X = split_validation_set.drop(["price"], axis=1)
+    test_X = split_test_set.drop(["price"], axis=1)
+
+    # Normalize numerical features using Z-score
+    train_X, train_means, train_stds = zscore_normalization(train_X)
+    validation_X, _, _ = zscore_normalization(validation_X, means=train_means, stds=train_stds)
+    test_X, _, _ = zscore_normalization(test_X, means=train_means, stds=train_stds)
+
+    # Normalize the target variable separately
+    train_Y, y_mean, y_std = zscore_normalization(pd.DataFrame(train_Y))
+    validation_Y, _, _ = zscore_normalization(pd.DataFrame(validation_Y), means=y_mean, stds=y_std)
+    test_Y, _, _ = zscore_normalization(pd.DataFrame(test_Y), means=y_mean, stds=y_std)
+
+    return (
+        np.array(train_X), np.array(train_Y).reshape(-1, 1),
+        np.array(validation_X), np.array(validation_Y).reshape(-1, 1),
+        np.array(test_X), np.array(test_Y).reshape(-1, 1),
+        y_mean, y_std  # Save for denormalization
+    )
+
 
 # custom function to give a full report for regression
 # takes the true values of the target , the predicted values, and the target column name
 # it gives the MAE, MSE, RMSE and a scatter plot for the true vs predicted values
-def customRegressionReport(trueValues, predictedValues, name="val"):
+def customRegressionReport(trueValues, predictedValues, labels=None, name="val"):
     # Compute metrics
     mse = np.mean((predictedValues - trueValues) ** 2)
     mee = np.mean(np.abs(predictedValues - trueValues))  # Corretto!
