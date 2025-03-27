@@ -43,15 +43,23 @@ y_test = y_test.flatten()
 # ------------------------- RANDOM HYPERPARAMETER SEARCH -------------------------
 print("Starting random hyperparameter search for SVR...")
 param_grid_random = {
-    "kernel_type": [KernelType.RBF, KernelType.LINEAR],
-    "C": [1, 5],  # Extended range: low to moderate values for flexibility
-    "epsilon": [0.1, 0.2, 0.3],  # Wide tube to tolerate noise
-    "sigma": [1.0, 1.5],  # Smooth kernels with various widths
-    "degree": [3],  # Fixed for polynomial (not used here)
-    "coef": [0.0],  # Irrelevant for RBF, kept for completeness
-    "learning_rate": [0.0005],  # Small learning rates for stable convergence
-    "momentum": [0.9]  # Different momentum levels to help optimization
+    "kernel_type": [KernelType.RBF],  # Focus solo sul kernel migliore finora
+
+    "C": [30, 40, 50, 60, 75, 100],  # Intorno a 50, per testare maggiore o minore regolarizzazione
+
+    "epsilon": [0.05, 0.06, 0.075, 0.09, 0.1],  # Intorno a 0.075 per regolare la tolleranza
+
+    "sigma": [0.03, 0.05, 0.075, 0.1, 0.15, 0.2],  # Range molto denso e fine intorno a 0.05
+
+    "degree": [3],  # Non usato per RBF, ma lasciato per compatibilità
+
+    "coef": [0.0],  # Non usato per RBF
+
+    "learning_rate": [0.002, 0.003, 0.004, 0.005, 0.007],  # Più fine tuning intorno a 0.005
+
+    "momentum": [0.6, 0.65, 0.7, 0.75, 0.8, 0.9]
 }
+
 
 best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=10)
 print(f"\nBest hyperparameters found: {best_params}")
