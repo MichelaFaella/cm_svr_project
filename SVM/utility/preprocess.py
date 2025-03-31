@@ -52,16 +52,6 @@ def splitData(
 
     return split_train_set_df, split_validation_set_df, split_test_set_df
 
-
-# function to split data to features and target
-# pass the name of the target columns
-def splitToFeaturesAndTarget(data, target_column="quality"):
-    print("data: ", data)
-    X = data.drop(target_column, axis=1).values.tolist()
-    Y = data[target_column].values.tolist()
-    return X, Y
-
-
 # function to perform Zscore normalization
 def zscore_normalization(data, means=None, stds=None):
     # Create a copy of the data to avoid modifying the original DataFrame
@@ -112,45 +102,7 @@ def denormalize_price(predictions, y_mean, y_std):
     y_std = y_std.values[0] if isinstance(y_std, pd.Series) else y_std
     return predictions * y_std + y_mean
 
-# Perform Preprocessing on the data
-# 1. split the data to training and validation
-# 2. split training data to X and Y
-# 3. split validation data to X and Y
-# 4. applying normalization
-def preprocessData(
-        data
-):
-    # split the data to training and validation
-    split_train_set, split_validation_set, split_test_set = (
-        splitData(data)
-    )
-
-    # split the training set to features and target
-    train_X, train_Y = splitToFeaturesAndTarget(split_train_set)
-    # split the validation set to features and target
-    validation_X, validation_Y = splitToFeaturesAndTarget(split_validation_set)
-    # split the test set to features and target
-    test_X, test_Y = splitToFeaturesAndTarget(split_test_set)
-
-    train_X = pd.DataFrame(train_X)
-    validation_X = pd.DataFrame(validation_X)
-    test_X = pd.DataFrame(test_X)
-
-    #normalize features
-    train_X, train_means, train_stds = zscore_normalization(train_X)
-    validation_X, _, _ = zscore_normalization(validation_X, means=train_means, stds=train_stds)
-    test_X, _, _ = zscore_normalization(test_X, means=train_means, stds=train_stds)
-
-    return (
-        np.array(train_X),
-        np.array(train_Y).reshape(-1, 1),
-        np.array(validation_X),
-        np.array(validation_Y).reshape(-1, 1),
-        np.array(test_X),
-        np.array(test_Y).reshape(-1, 1)
-    )
-
-def preprocessData_d(data):
+def preprocessData(data):
 
     # Split the data
     split_train_set, split_validation_set, split_test_set = splitData(data)

@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib
 import pandas as pd
 from sklearn.metrics import r2_score
-from SVM.utility.preprocess import preprocessData_d, denormalize_zscore, customRegressionReport, denormalize_price
+from SVM.utility.preprocess import preprocessData, customRegressionReport, denormalize_price
 
 # Use a backend suitable for showing plots
 matplotlib.use('TkAgg')
@@ -30,7 +30,7 @@ data_sampled = data_sampled.reset_index(drop=True)
 print(data_sampled.head())
 
 # Preprocessing (Z-score normalization + train/val/test split)
-X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std = preprocessData_d(data_sampled)
+X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std = preprocessData(data_sampled)
 
 print(f"Min/Max of normalized train_X: {X_train.min()}, {X_train.max()}")
 print(f"Min/Max of normalized train_Y: {y_train.min()}, {y_train.max()}")
@@ -84,17 +84,9 @@ training_loss = svr_final.fit(X_train, y_train)
 print("\nEvaluating on validation set...")
 Y_pred_val = svr_final.predict(X_val)
 
-print(f"Raw Y_pred_val (normalized): {Y_pred_val[:10]}")  # Print first 10 predictions
-print(f"Min/Max of Raw Y_pred_val (normalized): {Y_pred_val.min()}, {Y_pred_val.max()}")
-
-print(f"y_mean (original): {y_mean}, y_std (original): {y_std}")
-
 # Denormalize predictions and ground truth
 y_val_denorm = denormalize_price(y_val, y_mean, y_std)
 Y_pred_val_denorm = denormalize_price(Y_pred_val, y_mean, y_std)
-
-print(f"Min/Max of y_val_denorm: {y_val_denorm.min()}, {y_val_denorm.max()}")
-print(f"Min/Max of Y_pred_val_denorm: {Y_pred_val_denorm.min()}, {Y_pred_val_denorm.max()}")
 
 r2_val = r2_score(y_val_denorm, Y_pred_val_denorm)
 print(f"Validation R² score: {r2_val:.4f}")
@@ -116,12 +108,13 @@ plt.show()
 
 # Line plot on validation set (with epsilon tube)
 sorted_idx = np.argsort(X_val[:, 0])
+epsilon_denorm = best_params["epsilon"] * y_std  # Scale epsilon to original scale
 plt.figure(figsize=(10, 5))
 plt.scatter(X_val[sorted_idx, 0], y_val_denorm[sorted_idx], color='orange', label='True Price')
 plt.plot(X_val[sorted_idx, 0], Y_pred_val_denorm[sorted_idx], color='grey', lw=2, label='SVR Prediction')
 plt.fill_between(X_val[sorted_idx, 0],
-                 Y_pred_val_denorm[sorted_idx] - best_params["epsilon"],
-                 Y_pred_val_denorm[sorted_idx] + best_params["epsilon"],
+                 Y_pred_val_denorm[sorted_idx] - epsilon_denorm,
+                 Y_pred_val_denorm[sorted_idx] + epsilon_denorm,
                  color='lightblue', alpha=0.3, label='Epsilon Tube')
 plt.xlabel("Feature (sorted by first feature)")
 plt.ylabel("Diamond Price (denormalized)")
@@ -149,7 +142,7 @@ print(f"Test R² score: {r2_test:.4f}")
 # Scatter plot: Test set
 plt.figure(figsize=(6, 6))
 plt.scatter(y_test_denorm, Y_pred_test_denorm, alpha=0.5, color="purple")
-plt.scatter(y_val_denorm, y_val_denorm, alpha=0.5, color="green", label="True Values")
+plt.scatter(y_test_denorm, y_test_denorm, alpha=0.5, color="green", label="True Values")
 plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
 plt.xlabel("True Price")
 plt.ylabel("Predicted Price")
@@ -164,8 +157,8 @@ plt.figure(figsize=(10, 5))
 plt.scatter(X_test[sorted_idx, 0], y_test_denorm[sorted_idx], color='orange', label='True Price')
 plt.plot(X_test[sorted_idx, 0], Y_pred_test_denorm[sorted_idx], color='navy', lw=2, label='SVR Prediction')
 plt.fill_between(X_test[sorted_idx, 0],
-                 Y_pred_test_denorm[sorted_idx] - best_params["epsilon"],
-                 Y_pred_test_denorm[sorted_idx] + best_params["epsilon"],
+                 Y_pred_test_denorm[sorted_idx] - epsilon_denorm,
+                 Y_pred_test_denorm[sorted_idx] + epsilon_denorm,
                  color='lightblue', alpha=0.3, label='Epsilon Tube')
 plt.xlabel("Feature (sorted by first feature)")
 plt.ylabel("Diamonds price (denormalized)")
