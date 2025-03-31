@@ -52,60 +52,35 @@ def linear_kernel(x1, x2):
     return np.dot(x1, x2)
 
 
-def compute_kernel(x1, x2, kernel_type, **kwargs):
+def compute_kernel(X1, X2, kernel_type, sigma=1.0, degree=3, coef=1.0):
     """
-        Computes the kernel matrix for input matrices X1 and X2.
+    Compute the kernel matrix between datasets X1 and X2.
 
-        Parameters:
-        - X1: numpy array of shape (n_samples_1, n_features)
-            The first set of input data points.
-        - X2: numpy array of shape (n_samples_2, n_features)
-            The second set of input data points.
-        - kernel_type: KernelType:
-            The type of kernel function to use.
-        - kwargs: additional parameters for the kernel function
-            - If kernel_type is RBF:
-                - sigma: float (default=1.0), controls the width of the Gaussian function.
-            - If kernel_type is POLYNOMIAL:
-                - degree: int (default=3), the degree of the polynomial.
-                - coef: float (default=1), the independent term in the polynomial kernel.
+    Parameters:
+    - X1: numpy array (n_samples_1, n_features)
+    - X2: numpy array (n_samples_2, n_features)
+    - kernel_type: KernelType enum (LINEAR, POLYNOMIAL, RBF)
+    - sigma: float, only for RBF kernel
+    - degree: int, only for polynomial kernel
+    - coef: float, only for polynomial kernel
 
-        Returns:
-        - K: numpy array of shape (n_samples_1, n_samples_2)
-            The computed kernel matrix, where K[i, j] represents the kernel value
-            between the i-th sample of X1 and the j-th sample of X2.
-        """
+    Returns:
+    - Kernel matrix K of shape (n_samples_1, n_samples_2)
+    """
+    if kernel_type == KernelType.LINEAR:
+        return X1 @ X2.T
 
-    kernel_functions = {
-        KernelType.RBF: rbf_kernel,
-        KernelType.POLYNOMIAL: polinomial_kernel,
-        KernelType.LINEAR: linear_kernel,
-    }
+    elif kernel_type == KernelType.POLYNOMIAL:
+        return (X1 @ X2.T + coef) ** degree
 
-    if kernel_type not in kernel_functions:
-        return print(f"Invalid or null kernel type: {kernel_type}")
+    elif kernel_type == KernelType.RBF:
+        # Efficient computation of squared Euclidean distances
+        X1_sq = np.sum(X1 ** 2, axis=1).reshape(-1, 1)
+        X2_sq = np.sum(X2 ** 2, axis=1).reshape(1, -1)
+        dist_sq = X1_sq + X2_sq - 2 * (X1 @ X2.T)
 
-    n1, n2 = x1.shape[0], x2.shape[0]
-    K = np.zeros((n1, n2))  # Creation of an empty matrix of dimension n1 x n2
+        # Apply RBF formula with sigma^2
+        return np.exp(-dist_sq / (2 * sigma ** 2))
 
-    # Extract relevant parameters dynamically from kwargs
-    kernel_params = {
-        KernelType.RBF: {"sigma": kwargs.get("sigma", 1.0)},
-        KernelType.POLYNOMIAL: {
-            "degree": kwargs.get("degree", 3),
-            "coef": kwargs.get("coef", 1),
-        },
-        KernelType.LINEAR: {},  # No extra params for linear kernel
-    }
-
-    selected_params = kernel_params.get(kernel_type, {})
-
-    for i in range(n1):
-        for j in range(n2):
-            if kernel_type == KernelType.LINEAR:
-                # For linear kernel, no need to pass any params
-                K[i, j] = kernel_functions[kernel_type](x1[i], x2[j])
-            else:
-                K[i, j] = kernel_functions[kernel_type](x1[i], x2[j], **selected_params)
-
-    return K
+    else:
+        raise ValueError(f"Invalid kernel type: {kernel_type}")

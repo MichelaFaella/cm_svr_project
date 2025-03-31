@@ -52,6 +52,7 @@ def splitData(
 
     return split_train_set_df, split_validation_set_df, split_test_set_df
 
+
 # function to perform Zscore normalization
 def zscore_normalization(data, means=None, stds=None):
     # Create a copy of the data to avoid modifying the original DataFrame
@@ -97,12 +98,38 @@ def denormalize_zscore(predictions, data):
 
     return denorm_predictions
 
+
 def denormalize_price(predictions, y_mean, y_std):
     y_mean = y_mean.values[0] if isinstance(y_mean, pd.Series) else y_mean
     y_std = y_std.values[0] if isinstance(y_std, pd.Series) else y_std
     return predictions * y_std + y_mean
 
-def preprocessData(data):
+
+def remove_outliers(df, method="iqr"):
+    df_cleaned = df.copy()
+    numeric_cols = df_cleaned.select_dtypes(include=[np.number]).columns
+
+    if method == "zscore":
+        from scipy.stats import zscore
+        z_scores = np.abs(zscore(df_cleaned[numeric_cols]))
+        mask = (z_scores < 3).all(axis=1)
+        return df_cleaned[mask]
+
+    elif method == "iqr":
+        Q1 = df_cleaned[numeric_cols].quantile(0.25)
+        Q3 = df_cleaned[numeric_cols].quantile(0.75)
+        IQR = Q3 - Q1
+        mask = ~((df_cleaned[numeric_cols] < (Q1 - 1.5 * IQR)) |
+                 (df_cleaned[numeric_cols] > (Q3 + 1.5 * IQR))).any(axis=1)
+        return df_cleaned[mask]
+
+    else:
+        raise ValueError("Metodo non valido. Usa 'zscore' o 'iqr'.")
+
+
+def preprocessData(data, outlier_method="iqr"):
+    # Remove outlier (only on the columns)
+    data = remove_outliers(data, method=outlier_method)
 
     # Split the data
     split_train_set, split_validation_set, split_test_set = splitData(data)
@@ -112,17 +139,17 @@ def preprocessData(data):
     validation_Y = split_validation_set["price"]
     test_Y = split_test_set["price"]
 
-    # Drop categorical and target columns from features
+    # Drop target column from features
     train_X = split_train_set.drop(["price"], axis=1)
     validation_X = split_validation_set.drop(["price"], axis=1)
     test_X = split_test_set.drop(["price"], axis=1)
 
-    # Normalize numerical features using Z-score
+    # Normalize features using Z-score
     train_X, train_means, train_stds = zscore_normalization(train_X)
     validation_X, _, _ = zscore_normalization(validation_X, means=train_means, stds=train_stds)
     test_X, _, _ = zscore_normalization(test_X, means=train_means, stds=train_stds)
 
-    # Normalize the target variable separately
+    # Normalize target variable
     train_Y, y_mean, y_std = zscore_normalization(pd.DataFrame(train_Y))
     validation_Y, _, _ = zscore_normalization(pd.DataFrame(validation_Y), means=y_mean, stds=y_std)
     test_Y, _, _ = zscore_normalization(pd.DataFrame(test_Y), means=y_mean, stds=y_std)
@@ -131,7 +158,7 @@ def preprocessData(data):
         np.array(train_X), np.array(train_Y).reshape(-1, 1),
         np.array(validation_X), np.array(validation_Y).reshape(-1, 1),
         np.array(test_X), np.array(test_Y).reshape(-1, 1),
-        y_mean, y_std  # Save for denormalization
+        y_mean, y_std
     )
 
 
@@ -155,7 +182,7 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
 
     plt.scatter(trueValues, predictedValues, alpha=0.5, color="blue", label="Predicted Values")
     plt.scatter(trueValues, trueValues, alpha=0.5, color="green", label="True Values")
-    
+
     # Adding labels to points if provided
     if labels is not None:
         for i, label in enumerate(labels):

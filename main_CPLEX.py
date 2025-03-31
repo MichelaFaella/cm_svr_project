@@ -4,6 +4,9 @@ from docplex.mp.model import Model
 import matplotlib.pyplot as plt
 import time
 import os
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
 from SVM.utility.preprocess import preprocessData, denormalize_price  # Your preprocessing function
 
 print("Loading dataset...")
@@ -153,7 +156,6 @@ plt.show()
 # -------------------------
 # Model Evaluation
 # -------------------------
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 mse = mean_squared_error(y_test_denorm, y_pred_test_denorm)
 mae = mean_absolute_error(y_test_denorm, y_pred_test_denorm)

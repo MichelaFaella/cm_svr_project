@@ -5,7 +5,7 @@ from SVM.utility.Kernels import compute_kernel
 
 class SupportVectorRegression:
     def __init__(self, C=1.0, epsilon=0.1, kernel_type=KernelType.RBF, sigma=1.0,
-                 degree=3, coef=1.0, learning_rate=0.01, momentum=0.9, tol=1e-7):
+                 degree=3, coef=1.0, learning_rate=0.01, momentum=0.9, tol=1e-5):
         """
                 Initialize the Support Vector Regression model parameters.
 
@@ -133,7 +133,11 @@ class SupportVectorRegression:
             degree=self.degree,
             coef=self.coef
         )
-        return K_test @ self.beta + self.b
+
+        predictions = K_test @ self.beta + self.b
+        predictions = np.clip(predictions, -3.0, 3.0)
+
+        return predictions
 
     def smooth_abs(self, x):
         """
