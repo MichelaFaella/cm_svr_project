@@ -4,8 +4,8 @@ from SVM.utility.Kernels import compute_kernel
 
 
 class SupportVectorRegression:
-    def __init__(self, C=1.0, epsilon=0.1, kernel_type=KernelType.RBF, sigma=1.0,
-                 degree=3, coef=1.0, learning_rate=0.01, momentum=0.9, tol=1e-5):
+    def __init__(self, C=1.0, epsilon=10, kernel_type=KernelType.RBF, sigma=1.0,
+                 degree=3, coef=1.0, learning_rate=0.01, momentum=0.7, tol=1e-5):
         """
                 Initialize the Support Vector Regression model parameters.
 
@@ -36,21 +36,13 @@ class SupportVectorRegression:
 
     def fit(self, X, Y, max_iter=1000):
         """
-                Train the SVR model using Nesterov's smoothed gradient method.
-
-                Parameters:
-                - X: Training input data (numpy array)
-                - Y: Target values (numpy array)
-                - max_iter: Maximum number of optimization iterations
-
-                Returns:
-                - training_loss: List of dual objective values (Q_mu) at each iteration
-                """
+        Train the SVR model using Nesterov's smoothed gradient method.
+        """
         self.X_train = X
         n_samples = X.shape[0]
         self.b = 0.0
 
-        # Compute kernel matrix based on current kernel type
+        # Compute kernel matrix
         K = compute_kernel(
             X, X,
             kernel_type=self.kernel_type,
@@ -59,58 +51,62 @@ class SupportVectorRegression:
             coef=self.coef
         )
 
-        # Spectral norm (Lipschitz constant of the quadratic term)
+        # Spectral norm (Lipschitz constant)
         spectral_norm_K = np.linalg.norm(K, ord=2)
 
-        # Compute smoothing parameter μ = ε / (N*C² + ||K||)
+        # Compute smoothing parameter
         self.mu = self.epsilon / (n_samples * (self.C ** 2) + spectral_norm_K)
 
-        # Initialize β and velocity
-        self.beta = np.zeros(n_samples)
+        # Initialize variables
+        self.beta = np.random.uniform(-1e-3, 1e-3, size=n_samples)
+        beta_prev = np.zeros_like(self.beta)
         velocity = np.zeros_like(self.beta)
 
         training_loss = []
 
         for iteration in range(max_iter):
-            prev_beta = np.copy(self.beta)
-
             # Nesterov extrapolation
-            y_t = self.beta + self.momentum * (self.beta - prev_beta)
+            y_t = self.beta + self.momentum * (self.beta - beta_prev)
 
-            # Gradient
+            # Save current beta for next iteration
+            beta_prev = self.beta.copy()
+
+            # Compute gradient at extrapolated point
             grad = self.compute_smooth_gradient(K, Y, y_t)
 
             # Update with momentum
             velocity = self.momentum * velocity - self.learning_rate * grad
             self.beta = y_t + velocity
 
-            # Project β to box constraints
+            # Project β to box constraints [-C, C]
             self.beta = np.clip(self.beta, -self.C, self.C)
 
-            # Enforce ∑β = 0 by adjusting one variable (more robust than subtracting mean blindly)
+            # Enforce ∑β = 0
             beta_sum = np.sum(self.beta)
             if abs(beta_sum) > 1e-8:
-                idx = np.argmax(np.abs(self.beta))  # pick max component
-                self.beta[idx] -= beta_sum  # correct it
+                idx = np.argmax(np.abs(self.beta))
+                self.beta[idx] -= beta_sum
 
-            # Compute bias b using support vectors
+            # Compute bias b from support vectors
             support_indices = np.where((np.abs(self.beta) > 1e-6) & (np.abs(self.beta) < self.C))[0]
             if len(support_indices) > 0:
                 self.b = np.mean(Y[support_indices] - np.dot(K[support_indices], self.beta))
             else:
                 self.b = np.mean(Y - np.dot(K, self.beta))
 
-            # Smoothed dual objective
+            # Compute dual objective
             Q_mu = np.sum(Y * self.beta) - self.epsilon * np.sum(
                 self.smooth_abs(self.beta)) - 0.5 * self.beta @ K @ self.beta
             training_loss.append(Q_mu)
 
-            if np.linalg.norm(self.beta - prev_beta) < self.tol:
+            # Convergence check
+            if np.linalg.norm(self.beta - beta_prev) < self.tol:
                 print(f"Converged at iteration {iteration}")
                 break
 
             if iteration % 10 == 0:
-                print(f"Iteration {iteration}, Q_mu: {Q_mu:.6f}")
+                print(f"Iter {iteration} | max(β): {np.max(np.abs(self.beta)):.6f} | ∥grad∥: {np.linalg.norm(grad):.6f}"
+                      f"| Q_mu: {Q_mu:.6f}")
 
         return training_loss
 
@@ -135,7 +131,6 @@ class SupportVectorRegression:
         )
 
         predictions = K_test @ self.beta + self.b
-        predictions = np.clip(predictions, -3.0, 3.0)
 
         return predictions
 

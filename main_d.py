@@ -3,11 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 import os
-import time
 
 from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType
-from SVM.utility.Search import random_search_svr
+from SVM.utility.Search import grid_search_svr
 from sklearn.metrics import r2_score
 from SVM.utility.preprocess import preprocessData, customRegressionReport, denormalize_price
 
@@ -26,19 +25,38 @@ y_train = y_train.flatten()
 y_val = y_val.flatten()
 y_test = y_test.flatten()
 
+print("y_mean:", y_mean)
+print("y_std:", y_std)
+print("Shape y_mean:", y_mean.shape)
+print("Shape y_train:", y_train.shape)
+print("First 5 normalized y_train:", y_train[:5])
+
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
 param_grid_random = {
-    "kernel_type": [KernelType.RBF],
-    "C": [10, 30, 50],
-    "epsilon": [10, 20, 30, 40, 50],
-    "sigma": [0.01, 0.03, 0.05, 0.075, 0.1],
-    "degree": [3],
+    "kernel_type": [
+        KernelType.LINEAR,
+        KernelType.RBF
+    ],
+
+    # C controls regularization (applies to all kernels)
+    "C": [0.1, 1, 10, 30, 100],
+
+    # Epsilon-insensitive zone width
+    "epsilon": [0.01, 0.05, 0.1, 0.2],
+
+    # Sigma is used only for RBF
+    "sigma": [0.5, 1.0, 2.0, 5.0],
+
+    # Polynomial kernel parameters (ignored elsewhere)
+    "degree": [2],
     "coef": [0.0],
-    "learning_rate": [0.001, 0.003, 0.005],
+
+    # Optimizer parameters
+    "learning_rate": [0.001, 0.005, 0.01, 0.03, 0.05],
     "momentum": [0.7, 0.8, 0.9]
 }
-best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=10)
 
+best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
 print(f"Best params: {best_params} with {best_score}")
 
 # ------------------------- FINAL MODEL TRAINING -------------------------
@@ -59,13 +77,19 @@ print("\n---------------- VALIDATION PHASE ----------------")
 Y_pred_val = svr_final.predict(X_val)
 y_val_denorm = denormalize_price(y_val, y_mean, y_std)
 Y_pred_val_denorm = denormalize_price(Y_pred_val, y_mean, y_std)
-customRegressionReport(y_val_denorm, Y_pred_val_denorm, name="Test")
+
+print("First 5 denormalized predictions:", Y_pred_val_denorm[:5])
+print("Denorm mean:", np.mean(Y_pred_val_denorm))
+print("Denorm std:", np.std(Y_pred_val_denorm))
 
 # ------------------------- FINAL TRAINING ON TRAIN+VAL -------------------------
 print("\n---------------- TRAINING ON TRAIN + VALIDATION ----------------")
 X_train_final = np.vstack((X_train, X_val))
 y_train_final = np.hstack((y_train, y_val))
 svr_final.fit(X_train_final, y_train_final)
+print("max(β) VAL:", np.max(np.abs(svr_final.beta)))
+print("bias b VAL:", svr_final.b)
+
 
 # ------------------------- TEST PREDICTION -------------------------
 print("\n---------------- TEST PHASE ----------------")
@@ -73,27 +97,40 @@ Y_pred_test = svr_final.predict(X_test)
 y_test_denorm = denormalize_price(y_test, y_mean, y_std)
 Y_pred_test_denorm = denormalize_price(Y_pred_test, y_mean, y_std)
 
-# ------------------------- EPSILON TUBE PLOTS -------------------------
-feature_idx = 0
-feature_name = data_sampled.columns[feature_idx]
-x_range = np.linspace(X_val[:, feature_idx].min(), X_val[:, feature_idx].max(), 300)
-X_grid = np.tile(np.mean(X_val, axis=0), (300, 1))
-X_grid[:, feature_idx] = x_range
-y_pred_grid = svr_final.predict(X_grid)
-y_pred_grid_denorm = denormalize_price(y_pred_grid, y_mean, y_std)
-epsilon_denorm = float(best_params["epsilon"] * (y_std.iloc[0] if isinstance(y_std, pd.Series) else y_std))
+# ------------------------- EPSILON TUBE PLOTS (REALISTIC CURVE) -------------------------
+print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
+
+# Select meaningful feature to visualize (e.g., "carat")
+feature_name = "carat"
+feature_idx = list(data_sampled.columns).index(feature_name)
+
+# Sort validation data by the selected feature
+sorted_idx_val = np.argsort(X_val[:, feature_idx])
+X_val_sorted = X_val[sorted_idx_val]
+y_val_sorted = y_val_denorm[sorted_idx_val]
+Y_pred_val_sorted = Y_pred_val_denorm[sorted_idx_val]
+
+# Sort test data by the selected feature
+sorted_idx_test = np.argsort(X_test[:, feature_idx])
+X_test_sorted = X_test[sorted_idx_test]
+y_test_sorted = y_test_denorm[sorted_idx_test]
+Y_pred_test_sorted = svr_final.predict(X_test_sorted)
+Y_pred_test_denorm_sorted = denormalize_price(Y_pred_test_sorted, y_mean, y_std)
+
+# Get denormalized epsilon from final model
+epsilon_denorm = denormalize_price(np.array([svr_final.epsilon]), y_mean, y_std)[0]
 
 os.makedirs("plots", exist_ok=True)
 
-# Validation set epsilon tube plot
+# Plot: Validation set
 plt.figure(figsize=(10, 6))
-plt.scatter(X_val[:, feature_idx], y_val_denorm, alpha=0.4, color="gray", label="True Data (Validation)")
-plt.plot(x_range, y_pred_grid_denorm, color='blue', linewidth=2, label="SVR Prediction")
-plt.plot(x_range, y_pred_grid_denorm + epsilon_denorm, 'r--', label="+ε Tube")
-plt.plot(x_range, y_pred_grid_denorm - epsilon_denorm, 'r--', label="-ε Tube")
-plt.fill_between(x_range,
-                 y_pred_grid_denorm - epsilon_denorm,
-                 y_pred_grid_denorm + epsilon_denorm,
+plt.scatter(X_val_sorted[:, feature_idx], y_val_sorted, alpha=0.4, color="gray", label="True Data (Validation)")
+plt.plot(X_val_sorted[:, feature_idx], Y_pred_val_sorted, color='blue', linewidth=2, label="SVR Prediction")
+plt.plot(X_val_sorted[:, feature_idx], Y_pred_val_sorted + epsilon_denorm, 'r--', label="+\u03b5 Tube")
+plt.plot(X_val_sorted[:, feature_idx], Y_pred_val_sorted - epsilon_denorm, 'r--', label="-\u03b5 Tube")
+plt.fill_between(X_val_sorted[:, feature_idx],
+                 Y_pred_val_sorted - epsilon_denorm,
+                 Y_pred_val_sorted + epsilon_denorm,
                  color='red', alpha=0.1)
 plt.xlabel(f"{feature_name} (normalized)")
 plt.ylabel("Predicted Price")
@@ -104,15 +141,15 @@ plt.tight_layout()
 plt.savefig("plots/svr_epsilon_tube_validation.png")
 plt.show()
 
-# Test set epsilon tube plot
+# Plot: Test set
 plt.figure(figsize=(10, 6))
-plt.scatter(X_test[:, feature_idx], y_test_denorm, alpha=0.4, color="orange", label="True Data (Test)")
-plt.plot(x_range, y_pred_grid_denorm, color='blue', linewidth=2, label="SVR Prediction")
-plt.plot(x_range, y_pred_grid_denorm + epsilon_denorm, 'r--', label="+ε Tube")
-plt.plot(x_range, y_pred_grid_denorm - epsilon_denorm, 'r--', label="-ε Tube")
-plt.fill_between(x_range,
-                 y_pred_grid_denorm - epsilon_denorm,
-                 y_pred_grid_denorm + epsilon_denorm,
+plt.scatter(X_test_sorted[:, feature_idx], y_test_sorted, alpha=0.4, color="orange", label="True Data (Test)")
+plt.plot(X_test_sorted[:, feature_idx], Y_pred_test_denorm_sorted, color='blue', linewidth=2, label="SVR Prediction")
+plt.plot(X_test_sorted[:, feature_idx], Y_pred_test_denorm_sorted + epsilon_denorm, 'r--', label="+\u03b5 Tube")
+plt.plot(X_test_sorted[:, feature_idx], Y_pred_test_denorm_sorted - epsilon_denorm, 'r--', label="-\u03b5 Tube")
+plt.fill_between(X_test_sorted[:, feature_idx],
+                 Y_pred_test_denorm_sorted - epsilon_denorm,
+                 Y_pred_test_denorm_sorted + epsilon_denorm,
                  color='red', alpha=0.1)
 plt.xlabel(f"{feature_name} (normalized)")
 plt.ylabel("Predicted Price")
