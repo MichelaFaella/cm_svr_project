@@ -60,7 +60,7 @@ class SupportVectorRegression:
         spectral_norm_K = np.linalg.norm(K, ord=2)  # ≈ λ_max(K)
 
         # Compute smoothing parameter
-        self.mu = self.eps / (n_samples * (self.C ** 2))
+        self.mu = self.eps / (n_samples * (self.C ** 2) + spectral_norm_K)
 
         # Initialize variables
         self.beta = np.random.uniform(-1e-3, 1e-3, size=n_samples)

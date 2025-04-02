@@ -35,14 +35,26 @@ print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
 param_grid_random = {
-    "kernel_type": [KernelType.RBF],
-    "C": [0.1, 0.3, 0.5, 1, 3, 5],           # copre da soft a più rigido
-    "epsilon": [0.1, 0.2, 0.3, 0.4],         # tubo più o meno permissivo
-    "sigma": [0.3, 0.5, 0.7, 1.0, 2.0],      # controllo della forma del kernel
-    "degree": [2],                           # ignorato (ma richiesto)
-    "coef": [0.0],                           # idem
-    "learning_rate": [0.01, 0.03, 0.05],     # più robustezza
-    "momentum": [0.8, 0.9, 0.95]    
+    "kernel_type": [
+        KernelType.RBF
+    ],
+
+    # C controls regularization (applies to all kernels)
+    "C": [0.5, 1, 2, 5, 10],
+
+    # Epsilon-insensitive zone width
+    "epsilon": [0.2, 0.25, 0.3, 0.35, 0.4],
+
+    # Sigma is used only for RBF
+    "sigma": [0.5, 1.0, 2.0, 3.0, 5.0],
+
+    # Polynomial kernel parameters (ignored elsewhere)
+    "degree": [2],
+    "coef": [0.0],
+
+    # Optimizer parameters
+    "learning_rate": [0.01, 0.02, 0.03, 0.05, 0.07, 0.1],
+    "momentum": [0.8, 0.9, 0.95]
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
