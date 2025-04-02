@@ -35,32 +35,18 @@ print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
 param_grid_random = {
-    "kernel_type": [
-        KernelType.RBF
-    ],
-
-    # C controls regularization (applies to all kernels)
-    'C': [0.3, 0.5, 0.7],
-
-    # Epsilon-insensitive zone width
-    'epsilon': [0.3, 0.35, 0.4, 0.45],
-
-    # Sigma is used only for RBF
-    'sigma': [0.3, 0.4, 0.5, 0.6],
-
-    # Polynomial kernel parameters (ignored elsewhere)
-    "degree": [2],
-    "coef": [0.0],
-
-    # Optimizer parameters
-    'learning_rate': [0.03, 0.04, 0.05, 0.06],
-    "momentum": [0.8, 0.9, 0.95]
+    "kernel_type": [KernelType.RBF],
+    "C": [0.1, 0.3, 0.5, 1, 3, 5],           # copre da soft a più rigido
+    "epsilon": [0.1, 0.2, 0.3, 0.4],         # tubo più o meno permissivo
+    "sigma": [0.3, 0.5, 0.7, 1.0, 2.0],      # controllo della forma del kernel
+    "degree": [2],                           # ignorato (ma richiesto)
+    "coef": [0.0],                           # idem
+    "learning_rate": [0.01, 0.03, 0.05],     # più robustezza
+    "momentum": [0.8, 0.9, 0.95]    
 }
-# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.5, 'epsilon': 0.4, 'sigma': 0.5,
-# 'degree': 2, 'coef': 0.0, 'learning_rate': 0.1, 'momentum': 0.95} with 6.307816496453521
 
-# best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
-best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=100)
+best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
+# best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=100)
 print(f"Best params: {best_params} with {best_score}")
 
 # ------------------------- FINAL MODEL TRAINING -------------------------
@@ -202,5 +188,11 @@ customRegressionReport(y_val, Y_pred_val, name="Validation")
 
 print("\n---------------- TEST METRICS ----------------")
 customRegressionReport(y_test, Y_pred_test, name="Test")
+
+print("max β:", np.max(svr_final.beta))
+print("min β:", np.min(svr_final.beta))
+print("support vector attivi:", np.sum((np.abs(svr_final.beta) > 1e-3) & (np.abs(svr_final.beta) < svr_final.C)))
+print("bias b:", svr_final.b)
+
 
 print("\nAll plots and reports saved in the 'plots' directory.")

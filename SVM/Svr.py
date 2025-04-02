@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 class SupportVectorRegression:
     def __init__(self, C=1.0, epsilon=10, eps=0.05, kernel_type=KernelType.RBF, sigma=1.0,
-                 degree=3, coef=1.0, learning_rate=0.01, momentum=0.7, tol=1e-5):
+                 degree=3, coef=1.0, learning_rate=0.01, momentum=0.7, tol=1e-8):
         """
                 Initialize the Support Vector Regression model parameters.
 
@@ -40,6 +40,7 @@ class SupportVectorRegression:
         """
         Train the SVR model using Nesterov's smoothed gradient method.
         """
+
         self.X_train = X
         n_samples = X.shape[0]
         self.b = 0.0
@@ -53,11 +54,13 @@ class SupportVectorRegression:
             coef=self.coef
         )
 
+        print(f"AAAAAAAAAAAAAAAAAA {K}")
+
         # Spectral norm (Lipschitz constant)
-        spectral_norm_K = np.linalg.norm(K, ord=2)
+        spectral_norm_K = np.linalg.norm(K, ord=2)  # ≈ λ_max(K)
 
         # Compute smoothing parameter
-        self.mu = self.eps / (n_samples * (self.C ** 2) + spectral_norm_K)
+        self.mu = self.eps / (n_samples * (self.C ** 2))
 
         # Initialize variables
         self.beta = np.random.uniform(-1e-3, 1e-3, size=n_samples)
@@ -101,23 +104,24 @@ class SupportVectorRegression:
             training_loss.append(Q_mu)
             # --------------------------------------
 
-            # Enforce ∑β = 0
-            beta_sum = np.sum(self.beta)
-            if abs(beta_sum) > 1e-8:
-                idx = np.argmax(np.abs(self.beta))
-                self.beta[idx] -= beta_sum
+            non_zero_idx = np.where(np.abs(self.beta) > 1e-6)[0]
+            if len(non_zero_idx) > 0:
+                correction = np.sum(self.beta) / len(non_zero_idx)
+                self.beta[non_zero_idx] -= correction
 
             # Compute bias b from support vectors
             support_indices = np.where((np.abs(self.beta) > 1e-6) & (np.abs(self.beta) < self.C))[0]
             if len(support_indices) > 0:
-                self.b = np.mean(Y[support_indices] - np.dot(K[support_indices], self.beta))
+                residuals = Y[support_indices] - np.dot(K[support_indices], self.beta)
+                self.b = np.median(residuals)
             else:
                 print("[WARNING] Nessun support vector nel range (0, C). Calcolo b su tutto il dataset.")
-                self.b = np.mean(Y - np.dot(K, self.beta))
+                residuals = Y - np.dot(K, self.beta)
+                self.b = np.median(residuals)
 
             # Convergence check
             if np.linalg.norm(self.beta - beta_prev) < self.tol:
-                print(f"Converged at iteration {iteration}")
+                print(f"Converged at iteration {iteration} with this beta{self.beta}")
                 break
 
             if iteration % 10 == 0:
@@ -134,17 +138,9 @@ class SupportVectorRegression:
         return training_loss
 
     def predict(self, X_test):
-        """
-        Predict output values for new input samples.
-
-        Parameters:
-        - X_test: Test input data (numpy array)
-
-        Returns:
-        - Predicted target values (numpy array)
-        """
         if self.beta is None or self.b is None:
             raise ValueError("Model has not been trained.")
+
         K_test = compute_kernel(
             X_test, self.X_train,
             kernel_type=self.kernel_type,
@@ -154,7 +150,7 @@ class SupportVectorRegression:
         )
 
         predictions = K_test @ self.beta + self.b
-
+        print("PRED AVG:", np.mean(predictions), "MAX:", np.max(predictions), "MIN:", np.min(predictions))
         return predictions
 
     def smooth_abs(self, x):
@@ -211,4 +207,5 @@ class SupportVectorRegression:
         Returns:
         - gradient vector
         """
+
         return d - self.epsilon * self.smooth_abs_derivative(beta) - K @ beta

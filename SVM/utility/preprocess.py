@@ -5,6 +5,7 @@ from sklearn.model_selection import KFold
 import numpy as np
 import pandas as pd
 from sklearn import metrics
+from sklearn.preprocessing import MinMaxScaler
 import time
 
 
@@ -104,6 +105,7 @@ def denormalize_price(predictions, y_mean, y_std):
     y_std = y_std.values[0] if isinstance(y_std, pd.Series) else y_std
     return predictions * y_std + y_mean
 
+
 def denormalize(predictions, mean, std):
     mean = mean.values[0] if isinstance(mean, pd.Series) else mean
     std = std.values[0] if isinstance(std, pd.Series) else std
@@ -132,8 +134,9 @@ def remove_outliers(df, method="iqr"):
         raise ValueError("Metodo non valido. Usa 'zscore' o 'iqr'.")
 
 
+
 def preprocessData(data, outlier_method="iqr"):
-    # Remove outlier (only on the columns)
+    # Remove outliers
     data = remove_outliers(data, method=outlier_method)
 
     # Split the data
@@ -149,12 +152,13 @@ def preprocessData(data, outlier_method="iqr"):
     validation_X = split_validation_set.drop(["price"], axis=1)
     test_X = split_test_set.drop(["price"], axis=1)
 
-    # Normalize features using Z-score
-    train_X, train_means, train_stds = zscore_normalization(train_X)
-    validation_X, _, _ = zscore_normalization(validation_X, means=train_means, stds=train_stds)
-    test_X, _, _ = zscore_normalization(test_X, means=train_means, stds=train_stds)
+    # Normalize features using MinMaxScaler
+    scaler_X = MinMaxScaler()
+    train_X = scaler_X.fit_transform(train_X)
+    validation_X = scaler_X.transform(validation_X)
+    test_X = scaler_X.transform(test_X)
 
-    # Normalize target variable
+    # Normalize target using Z-score (unchanged)
     train_Y, y_mean, y_std = zscore_normalization(pd.DataFrame(train_Y))
     validation_Y, _, _ = zscore_normalization(pd.DataFrame(validation_Y), means=y_mean, stds=y_std)
     test_Y, _, _ = zscore_normalization(pd.DataFrame(test_Y), means=y_mean, stds=y_std)
@@ -163,7 +167,9 @@ def preprocessData(data, outlier_method="iqr"):
         np.array(train_X), np.array(train_Y).reshape(-1, 1),
         np.array(validation_X), np.array(validation_Y).reshape(-1, 1),
         np.array(test_X), np.array(test_Y).reshape(-1, 1),
-        y_mean, y_std, train_means, train_stds
+        y_mean, y_std,
+        pd.Series(scaler_X.data_min_), pd.Series(scaler_X.data_max_ - scaler_X.data_min_)
+        # simula mean/std per compatibilità
     )
 
 
