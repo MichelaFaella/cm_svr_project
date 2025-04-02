@@ -7,14 +7,14 @@ import os
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-from SVM.utility.preprocess import preprocessData, denormalize_price  # Your preprocessing function
+from SVM.utility.preprocess import preprocessData, denormalize_price, customRegressionReport  # Your preprocessing function
 
 print("Loading dataset...")
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',', header=0)
 
 # Randomly select 3000 samples
-data_sampled = data.sample(n=3000, random_state=42)  # Set random_state for reproducibility
+data_sampled = data.sample(n=280, random_state=42)  # Set random_state for reproducibility
 
 # Reset index
 data_sampled = data_sampled.reset_index(drop=True)
@@ -117,8 +117,8 @@ Y_pred_sorted = y_pred_test_denorm[sorted_idx]
 y_sorted = y_test_denorm[sorted_idx]
 
 # Compute upper and lower bounds of the epsilon tube
-upper_bound = y_pred_test_denorm + epsilon * y_std # Scale epsilon to original scale
-lower_bound = y_pred_test_denorm - epsilon * y_std
+upper_bound = y_pred_test_denorm + epsilon * float(y_std)  # Convert y_std to scalar if necessary
+lower_bound = y_pred_test_denorm - epsilon * float(y_std)  # Same for the lower bound
 
 # ---------------------------------
 # Plot Results: Optimized SVR Model & Training Loss
@@ -156,14 +156,8 @@ plt.show()
 # -------------------------
 # Model Evaluation
 # -------------------------
+customRegressionReport(y_test_denorm, y_pred_test_denorm, name="Test")
 
-mse = mean_squared_error(y_test_denorm, y_pred_test_denorm)
-mae = mean_absolute_error(y_test_denorm, y_pred_test_denorm)
-r2 = r2_score(y_test_denorm, y_pred_test_denorm)
-
-print(f"Test MSE: {mse:.4f}")
-print(f"Test MAE: {mae:.4f}")
-print(f"Test R² Score: {r2:.4f}")
 
 
 

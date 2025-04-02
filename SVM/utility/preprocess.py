@@ -104,6 +104,11 @@ def denormalize_price(predictions, y_mean, y_std):
     y_std = y_std.values[0] if isinstance(y_std, pd.Series) else y_std
     return predictions * y_std + y_mean
 
+def denormalize(predictions, mean, std):
+    mean = mean.values[0] if isinstance(mean, pd.Series) else mean
+    std = std.values[0] if isinstance(std, pd.Series) else std
+    return predictions * std + mean
+
 
 def remove_outliers(df, method="iqr"):
     df_cleaned = df.copy()
@@ -158,7 +163,7 @@ def preprocessData(data, outlier_method="iqr"):
         np.array(train_X), np.array(train_Y).reshape(-1, 1),
         np.array(validation_X), np.array(validation_Y).reshape(-1, 1),
         np.array(test_X), np.array(test_Y).reshape(-1, 1),
-        y_mean, y_std
+        y_mean, y_std, train_means, train_stds
     )
 
 
@@ -199,7 +204,7 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
     plt.grid(True)
     plt.legend()
 
-    os.makedirs("plots", exist_ok=True)
+    os.makedirs("plots/scatter", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    plt.savefig(f"plots/svr_customRegression_{name}_{timestamp}.png")
+    plt.savefig(f"plots/scatter/svr_customRegression_{name}_{timestamp}.png")
     plt.show()

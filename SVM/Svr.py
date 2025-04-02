@@ -1,10 +1,10 @@
 import numpy as np
 from SVM.utility.Enum import KernelType
 from SVM.utility.Kernels import compute_kernel
-
+import matplotlib.pyplot as plt
 
 class SupportVectorRegression:
-    def __init__(self, C=1.0, epsilon=10, kernel_type=KernelType.RBF, sigma=1.0,
+    def __init__(self, C=1.0, epsilon=10, eps=0.01, kernel_type=KernelType.RBF, sigma=1.0,
                  degree=3, coef=1.0, learning_rate=0.01, momentum=0.7, tol=1e-5):
         """
                 Initialize the Support Vector Regression model parameters.
@@ -29,6 +29,7 @@ class SupportVectorRegression:
         self.learning_rate = learning_rate
         self.momentum = momentum
         self.tol = tol
+        self.eps = eps
         self.beta = None
         self.b = None
         self.X_train = None
@@ -55,18 +56,25 @@ class SupportVectorRegression:
         spectral_norm_K = np.linalg.norm(K, ord=2)
 
         # Compute smoothing parameter
-        self.mu = self.epsilon / (n_samples * (self.C ** 2) + spectral_norm_K)
+        self.mu = self.eps / (n_samples * (self.C ** 2) + spectral_norm_K)
 
         # Initialize variables
         self.beta = np.random.uniform(-1e-3, 1e-3, size=n_samples)
         beta_prev = np.zeros_like(self.beta)
         velocity = np.zeros_like(self.beta)
 
-        training_loss = []
+        beta_norms = []  # Track β updates
+        grad_norms = []  # Track gradient norms
+        training_loss = []  # Track Q_mu
 
         for iteration in range(max_iter):
             # Nesterov extrapolation
             y_t = self.beta + self.momentum * (self.beta - beta_prev)
+
+            # ------ Track norm of beta difference ------
+            beta_diff = np.linalg.norm(self.beta - beta_prev)
+            beta_norms.append(beta_diff)
+            # -------------------------------------------
 
             # Save current beta for next iteration
             beta_prev = self.beta.copy()
@@ -74,12 +82,23 @@ class SupportVectorRegression:
             # Compute gradient at extrapolated point
             grad = self.compute_smooth_gradient(K, Y, y_t)
 
+            # ------- Track gradient norm ----------
+            grad_norm = np.linalg.norm(grad)
+            grad_norms.append(grad_norm)
+            # -------------------------------------
+
             # Update with momentum
             velocity = self.momentum * velocity - self.learning_rate * grad
             self.beta = y_t + velocity
 
             # Project β to box constraints [-C, C]
             self.beta = np.clip(self.beta, -self.C, self.C)
+
+            # Track Q_mu (Dual Objective)
+            Q_mu = np.sum(Y * self.beta) - self.epsilon * np.sum(
+                self.smooth_abs(self.beta)) - 0.5 * self.beta @ K @ self.beta
+            training_loss.append(Q_mu)
+            # --------------------------------------
 
             # Enforce ∑β = 0
             beta_sum = np.sum(self.beta)
@@ -94,11 +113,6 @@ class SupportVectorRegression:
             else:
                 self.b = np.mean(Y - np.dot(K, self.beta))
 
-            # Compute dual objective
-            Q_mu = np.sum(Y * self.beta) - self.epsilon * np.sum(
-                self.smooth_abs(self.beta)) - 0.5 * self.beta @ K @ self.beta
-            training_loss.append(Q_mu)
-
             # Convergence check
             if np.linalg.norm(self.beta - beta_prev) < self.tol:
                 print(f"Converged at iteration {iteration}")
@@ -107,6 +121,13 @@ class SupportVectorRegression:
             if iteration % 10 == 0:
                 print(f"Iter {iteration} | max(β): {np.max(np.abs(self.beta)):.6f} | ∥grad∥: {np.linalg.norm(grad):.6f}"
                       f"| Q_mu: {Q_mu:.6f}")
+
+        # Store training loss for later visualization
+        self.training_loss = {
+            "beta_norms": beta_norms,
+            "grad_norms": grad_norms,
+            "Q_mu": training_loss
+        }
 
         return training_loss
 
