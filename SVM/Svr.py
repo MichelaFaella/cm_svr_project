@@ -3,8 +3,9 @@ from SVM.utility.Enum import KernelType
 from SVM.utility.Kernels import compute_kernel
 import matplotlib.pyplot as plt
 
+
 class SupportVectorRegression:
-    def __init__(self, C=1.0, epsilon=10, eps=0.01, kernel_type=KernelType.RBF, sigma=1.0,
+    def __init__(self, C=1.0, epsilon=10, eps=0.05, kernel_type=KernelType.RBF, sigma=1.0,
                  degree=3, coef=1.0, learning_rate=0.01, momentum=0.7, tol=1e-5):
         """
                 Initialize the Support Vector Regression model parameters.
@@ -111,6 +112,7 @@ class SupportVectorRegression:
             if len(support_indices) > 0:
                 self.b = np.mean(Y[support_indices] - np.dot(K[support_indices], self.beta))
             else:
+                print("[WARNING] Nessun support vector nel range (0, C). Calcolo b su tutto il dataset.")
                 self.b = np.mean(Y - np.dot(K, self.beta))
 
             # Convergence check

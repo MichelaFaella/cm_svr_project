@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -38,24 +40,26 @@ param_grid_random = {
     ],
 
     # C controls regularization (applies to all kernels)
-    "C": [0.5, 1, 2, 5, 10],
+    'C': [0.3, 0.5, 0.7],
 
     # Epsilon-insensitive zone width
-    "epsilon": [0.2, 0.25, 0.3, 0.35, 0.4],
+    'epsilon': [0.3, 0.35, 0.4, 0.45],
 
     # Sigma is used only for RBF
-    "sigma": [0.5, 1.0, 2.0, 3.0, 5.0], 
+    'sigma': [0.3, 0.4, 0.5, 0.6],
 
     # Polynomial kernel parameters (ignored elsewhere)
     "degree": [2],
     "coef": [0.0],
 
     # Optimizer parameters
-    "learning_rate": [0.01, 0.02, 0.03, 0.05, 0.07, 0.1],
+    'learning_rate': [0.03, 0.04, 0.05, 0.06],
     "momentum": [0.8, 0.9, 0.95]
 }
+# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.5, 'epsilon': 0.4, 'sigma': 0.5,
+# 'degree': 2, 'coef': 0.0, 'learning_rate': 0.1, 'momentum': 0.95} with 6.307816496453521
 
-#best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
+# best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
 best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=100)
 print(f"Best params: {best_params} with {best_score}")
 
@@ -120,7 +124,6 @@ svr_final.fit(X_train_final, y_train_final)
 print("max(β) VAL:", np.max(np.abs(svr_final.beta)))
 print("bias b VAL:", svr_final.b)
 
-
 # ------------------------- TEST PREDICTION -------------------------
 print("\n---------------- TEST PHASE ----------------")
 Y_pred_test = svr_final.predict(X_test)
@@ -130,6 +133,7 @@ X_train_final_denorm = denormalize_price(X_train_final, mean, std)
 
 # ------------------------- EPSILON TUBE PLOTS (REALISTIC CURVE) -------------------------
 print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
+timestamp = time.strftime("%Y%m%d-%H%M%S")
 
 # Select meaningful feature to visualize (e.g., "carat")
 feature_name = "carat"
@@ -170,7 +174,7 @@ plt.title(f"SVR + Epsilon Tube on Validation Set [{feature_name}]")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("plots/validation/svr_epsilon_tube_validation.png")
+plt.savefig(f"plots/validation/svr_epsilon_tube_validation{timestamp}.png")
 plt.show()
 
 # Plot: Test set
@@ -189,7 +193,7 @@ plt.title(f"SVR + Epsilon Tube on Test Set [{feature_name}]")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("plots/test/svr_epsilon_tube_test.png")
+plt.savefig(f"plots/test/svr_epsilon_tube_test{timestamp}.png")
 plt.show()
 
 # ------------------------- METRICS -------------------------
