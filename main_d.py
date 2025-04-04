@@ -10,7 +10,7 @@ from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType
 from SVM.utility.Search import grid_search_svr, random_search_svr
 from sklearn.metrics import r2_score
-from SVM.utility.preprocess import preprocessData, customRegressionReport, denormalize_price
+from SVM.utility.preprocess import preprocessData, customRegressionReport, denormalize_price, denormalize
 
 # Use TkAgg backend for interactive plots
 matplotlib.use('TkAgg')
@@ -35,27 +35,28 @@ print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
 param_grid_random = {
-    "kernel_type": [
-        KernelType.RBF
-    ],
+    "kernel_type": [KernelType.RBF],
 
-    # C controls regularization (applies to all kernels)
-    "C": [0.5, 1, 2, 5, 10],
+    # Regolarizzazione più fine
+    "C": [1.0],
 
-    # Epsilon-insensitive zone width
-    "epsilon": [0.2, 0.25, 0.3, 0.35, 0.4],
+    # Epsilon più bilanciato
+    "epsilon": [0.05, 0.1, 0.15],
 
-    # Sigma is used only for RBF
-    "sigma": [0.5, 1.0, 2.0, 3.0, 5.0],
+    # Raggio RBF
+    "sigma": [0.1, 0.5, 1.0],
 
-    # Polynomial kernel parameters (ignored elsewhere)
+    # Dummy values per compatibilità con costruttore
     "degree": [2],
     "coef": [0.0],
 
-    # Optimizer parameters
-    "learning_rate": [0.01, 0.02, 0.03, 0.05, 0.07, 0.1],
-    "momentum": [0.8, 0.9, 0.95]
+    # Learning rate più stabili
+    "learning_rate": [0.0005, 0.001],
+
+    # Momentum non troppo alto per evitare oscillazioni
+    "momentum": [0.7, 0.8, 0.9]
 }
+
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
 # best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=100)
@@ -107,8 +108,8 @@ Y_pred_val = svr_final.predict(X_val)
 y_val_denorm = denormalize_price(y_val, y_mean, y_std)
 Y_pred_val_denorm = denormalize_price(Y_pred_val, y_mean, y_std)
 
-X_val_denorm = denormalize_price(X_val, mean, std)
-X_test_denorm = denormalize_price(X_test, mean, std)
+X_val_denorm = denormalize(X_val, mean, std)
+X_test_denorm = denormalize(X_test, mean, std)
 
 print("First 5 denormalized predictions:", Y_pred_val_denorm[:5])
 print("Denorm mean:", np.mean(Y_pred_val_denorm))
@@ -127,7 +128,7 @@ print("\n---------------- TEST PHASE ----------------")
 Y_pred_test = svr_final.predict(X_test)
 y_test_denorm = denormalize_price(y_test, y_mean, y_std)
 Y_pred_test_denorm = denormalize_price(Y_pred_test, y_mean, y_std)
-X_train_final_denorm = denormalize_price(X_train_final, mean, std)
+X_train_final_denorm = denormalize(X_train_final, mean, std)
 
 # ------------------------- EPSILON TUBE PLOTS (REALISTIC CURVE) -------------------------
 print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
@@ -143,11 +144,14 @@ X_val_sorted = X_val_denorm[sorted_idx_val]
 y_val_sorted = y_val_denorm[sorted_idx_val]
 Y_pred_val_sorted = Y_pred_val_denorm[sorted_idx_val]
 
-# Sort test data by the selected feature
+# Sort test data by the selected feature (for plotting)
 sorted_idx_test = np.argsort(X_test_denorm[:, feature_idx])
-X_test_sorted = X_test_denorm[sorted_idx_test]
+X_test_sorted_denorm = X_test_denorm[sorted_idx_test]  # for x-axis
+X_test_sorted_norm = X_test[sorted_idx_test]            # to predict
 y_test_sorted = y_test_denorm[sorted_idx_test]
-Y_pred_test_sorted = svr_final.predict(X_test_sorted)
+
+# Predict on normalized features
+Y_pred_test_sorted = svr_final.predict(X_test_sorted_norm)
 Y_pred_test_denorm_sorted = denormalize_price(Y_pred_test_sorted, y_mean, y_std)
 
 # Get denormalized epsilon from final model
@@ -175,13 +179,13 @@ plt.tight_layout()
 plt.savefig(f"plots/validation/svr_epsilon_tube_validation{timestamp}.png")
 plt.show()
 
-# Plot: Test set
+# Plot: Test set (CORRETTO)
 plt.figure(figsize=(10, 6))
-plt.scatter(X_test_sorted[:, feature_idx], y_test_sorted, alpha=0.4, color="orange", label="True Data (Test)")
-plt.plot(X_test_sorted[:, feature_idx], Y_pred_test_denorm_sorted, color='blue', linewidth=2, label="SVR Prediction")
-plt.plot(X_test_sorted[:, feature_idx], Y_pred_test_denorm_sorted + epsilon_denorm, 'r--', label="+\u03b5 Tube")
-plt.plot(X_test_sorted[:, feature_idx], Y_pred_test_denorm_sorted - epsilon_denorm, 'r--', label="-\u03b5 Tube")
-plt.fill_between(X_test_sorted[:, feature_idx],
+plt.scatter(X_test_sorted_denorm[:, feature_idx], y_test_sorted, alpha=0.4, color="orange", label="True Data (Test)")
+plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted, color='blue', linewidth=2, label="SVR Prediction")
+plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted + epsilon_denorm, 'r--', label="+\u03b5 Tube")
+plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted - epsilon_denorm, 'r--', label="-\u03b5 Tube")
+plt.fill_between(X_test_sorted_denorm[:, feature_idx],
                  Y_pred_test_denorm_sorted - epsilon_denorm,
                  Y_pred_test_denorm_sorted + epsilon_denorm,
                  color='red', alpha=0.1)
@@ -193,6 +197,7 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig(f"plots/test/svr_epsilon_tube_test{timestamp}.png")
 plt.show()
+
 
 # ------------------------- METRICS -------------------------
 print("\n---------------- VALIDATION METRICS ----------------")

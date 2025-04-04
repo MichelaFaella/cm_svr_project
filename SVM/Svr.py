@@ -36,11 +36,10 @@ class SupportVectorRegression:
         self.X_train = None
         self.mu = None
 
-    def fit(self, X, Y, max_iter=1000):
+    def fit(self, X, Y, max_iter=200):
         """
         Train the SVR model using Nesterov's smoothed gradient method.
         """
-
         self.X_train = X
         n_samples = X.shape[0]
         self.b = 0.0
@@ -54,81 +53,88 @@ class SupportVectorRegression:
             coef=self.coef
         )
 
-        print(f"AAAAAAAAAAAAAAAAAA {K}")
-
         # Spectral norm (Lipschitz constant)
-        spectral_norm_K = np.linalg.norm(K, ord=2)  # ≈ λ_max(K)
+        spectral_norm_K = np.linalg.norm(K, ord=2)
 
-        # Compute smoothing parameter
-        self.mu = self.eps / (n_samples * (self.C ** 2) + spectral_norm_K)
+        # Compute smoothing parameter μ
+        mu_theoretical = self.eps / (n_samples * (self.C ** 2) + spectral_norm_K)
+        self.mu = max(mu_theoretical, 1e-4)
 
         # Initialize variables
-        self.beta = np.random.uniform(-1e-3, 1e-3, size=n_samples)
+        self.beta = np.zeros(n_samples)
         beta_prev = np.zeros_like(self.beta)
         velocity = np.zeros_like(self.beta)
 
-        beta_norms = []  # Track β updates
-        grad_norms = []  # Track gradient norms
-        training_loss = []  # Track Q_mu
+        beta_norms = []
+        grad_norms = []
+        training_loss = []
+
+        # Plateau check setup
+        q_mu_prev = None
+        plateau_count = 0
+        plateau_threshold = 10
 
         for iteration in range(max_iter):
             # Nesterov extrapolation
             y_t = self.beta + self.momentum * (self.beta - beta_prev)
-
-            # ------ Track norm of beta difference ------
-            beta_diff = np.linalg.norm(self.beta - beta_prev)
-            beta_norms.append(beta_diff)
-            # -------------------------------------------
-
-            # Save current beta for next iteration
             beta_prev = self.beta.copy()
 
             # Compute gradient at extrapolated point
             grad = self.compute_smooth_gradient(K, Y, y_t)
-
-            # ------- Track gradient norm ----------
             grad_norm = np.linalg.norm(grad)
             grad_norms.append(grad_norm)
-            # -------------------------------------
 
-            # Update with momentum
-            velocity = self.momentum * velocity - self.learning_rate * grad
+            # Update β with momentum
+            velocity = self.momentum * velocity + self.learning_rate * grad
             self.beta = y_t + velocity
 
-            # Project β to box constraints [-C, C]
+            # Box constraint
             self.beta = np.clip(self.beta, -self.C, self.C)
 
-            # Track Q_mu (Dual Objective)
+            # Equality constraint
+            self.beta -= np.mean(self.beta)
+
+            # Dual objective Q_mu
             Q_mu = np.sum(Y * self.beta) - self.epsilon * np.sum(
                 self.smooth_abs(self.beta)) - 0.5 * self.beta @ K @ self.beta
             training_loss.append(Q_mu)
-            # --------------------------------------
 
-            non_zero_idx = np.where(np.abs(self.beta) > 1e-6)[0]
-            if len(non_zero_idx) > 0:
-                correction = np.sum(self.beta) / len(non_zero_idx)
-                self.beta[non_zero_idx] -= correction
+            # Early stopping: plateau detection
+            if q_mu_prev is not None:
+                if abs(Q_mu - q_mu_prev) < 1e-4:
+                    plateau_count += 1
+                    if plateau_count >= plateau_threshold:
+                        print(f"[EARLY STOPPING] Q_mu plateaued for {plateau_threshold} iterations.")
+                        break
+                else:
+                    plateau_count = 0
+            q_mu_prev = Q_mu
 
-            # Compute bias b from support vectors
+            # Track beta diff
+            beta_diff = np.linalg.norm(self.beta - beta_prev)
+            beta_norms.append(beta_diff)
+
+            # Bias estimation
             support_indices = np.where((np.abs(self.beta) > 1e-6) & (np.abs(self.beta) < self.C))[0]
             if len(support_indices) > 0:
                 residuals = Y[support_indices] - np.dot(K[support_indices], self.beta)
                 self.b = np.median(residuals)
             else:
-                print("[WARNING] Nessun support vector nel range (0, C). Calcolo b su tutto il dataset.")
+                print("[WARNING] No support vectors in (0, C). Falling back to full dataset for bias estimation.")
                 residuals = Y - np.dot(K, self.beta)
                 self.b = np.median(residuals)
 
             # Convergence check
-            if np.linalg.norm(self.beta - beta_prev) < self.tol:
-                print(f"Converged at iteration {iteration} with this beta{self.beta}")
+            if beta_diff < self.tol and grad_norm < 1.0:
+                print(f"[CONVERGENCE] Iteration {iteration} | β change: {beta_diff:.2e}")
+                print("Unique β values:", np.unique(np.round(self.beta, 6)))
                 break
 
+            # Logging
             if iteration % 10 == 0:
-                print(f"Iter {iteration} | max(β): {np.max(np.abs(self.beta)):.6f} | ∥grad∥: {np.linalg.norm(grad):.6f}"
-                      f"| Q_mu: {Q_mu:.6f}")
+                print(f"Iter {iteration} | max(β): {np.max(np.abs(self.beta)):.6f} | "
+                      f"∥grad∥: {grad_norm:.6f} | Q_mu: {Q_mu:.6f} | ∑β: {np.sum(self.beta):.2e}")
 
-        # Store training loss for later visualization
         self.training_loss = {
             "beta_norms": beta_norms,
             "grad_norms": grad_norms,
