@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 
 class SupportVectorRegression:
-    def __init__(self, C=1.0, epsilon=10, eps=0.05, kernel_type=KernelType.RBF, sigma=1.0,
+    def __init__(self, C=1.0, epsilon=10, eps=0.1, kernel_type=KernelType.RBF, sigma=1.0,
                  degree=3, coef=1.0, learning_rate=0.01, momentum=0.7, tol=1e-8):
         """
                 Initialize the Support Vector Regression model parameters.
@@ -36,7 +36,7 @@ class SupportVectorRegression:
         self.X_train = None
         self.mu = None
 
-    def fit(self, X, Y, max_iter=200):
+    def fit(self, X, Y, max_iter=300):
         """
         Train the SVR model using Nesterov's smoothed gradient method.
         """
@@ -57,8 +57,8 @@ class SupportVectorRegression:
         spectral_norm_K = np.linalg.norm(K, ord=2)
 
         # Compute smoothing parameter μ
-        mu_theoretical = self.eps / (n_samples * (self.C ** 2) + spectral_norm_K)
-        self.mu = max(mu_theoretical, 1e-4)
+        self.mu = self.eps / (n_samples * (self.C ** 2) + spectral_norm_K)
+
 
         # Initialize variables
         self.beta = np.zeros(n_samples)
@@ -81,7 +81,12 @@ class SupportVectorRegression:
 
             # Compute gradient at extrapolated point
             grad = self.compute_smooth_gradient(K, Y, y_t)
+
+            # Gradient clipping
+            max_grad_norm = 20.0
             grad_norm = np.linalg.norm(grad)
+            if grad_norm > max_grad_norm:
+                grad = grad * (max_grad_norm / grad_norm)
             grad_norms.append(grad_norm)
 
             # Update β with momentum

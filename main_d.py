@@ -8,9 +8,9 @@ import os
 
 from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType
-from SVM.utility.Search import grid_search_svr, random_search_svr
-from sklearn.metrics import r2_score
-from SVM.utility.preprocess import preprocessData, customRegressionReport, denormalize_price, denormalize
+from SVM.utility.Search import grid_search_svr
+from SVM.utility.utility import preprocessData, customRegressionReport, denormalize_price, denormalize, \
+    plot_convergence_curves
 
 # Use TkAgg backend for interactive plots
 matplotlib.use('TkAgg')
@@ -19,7 +19,7 @@ matplotlib.use('TkAgg')
 print("Loading dataset...")
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',', header=0)
-data_sampled = data.sample(n=3000, random_state=42).reset_index(drop=True)
+data_sampled = data.sample(n=3000, random_state=64).reset_index(drop=True)
 
 # ------------------------- PREPROCESSING -------------------------
 X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = preprocessData(data_sampled)
@@ -35,31 +35,21 @@ print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
 param_grid_random = {
-    "kernel_type": [KernelType.RBF],
-
-    # Regolarizzazione più fine
-    "C": [1.0],
-
-    # Epsilon più bilanciato
-    "epsilon": [0.05, 0.1, 0.15],
-
-    # Raggio RBF
-    "sigma": [0.1, 0.5, 1.0],
-
-    # Dummy values per compatibilità con costruttore
-    "degree": [2],
-    "coef": [0.0],
-
-    # Learning rate più stabili
-    "learning_rate": [0.0005, 0.001],
-
-    # Momentum non troppo alto per evitare oscillazioni
-    "momentum": [0.7, 0.8, 0.9]
+    'kernel_type': [KernelType.LINEAR],
+    'C': [0.05],                    # penalizzazione: più alto = meno regolarizzazione
+    'epsilon': [0.1],                   # margine di tolleranza
+    'sigma': [2.5],           # spread del RBF: più basso = più località
+    'degree': [2],                                 # non usato nel RBF ma richiesto dal tuo codice
+    'coef': [0.0],                                 # idem
+    'learning_rate': [0.001],                      # confermato stabile nel tuo training log
+    'momentum': [0.6, 0.7],                             # idem
 }
 
 
+
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
-# best_params, best_score = random_search_svr(X_train, y_train, X_val, y_val, param_grid_random, n_iter=100)
+# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.1, 'epsilon': 0.1, 'sigma': 2.5,
+# 'degree': 2, 'coef': 0.0, 'learning_rate': 0.001, 'momentum': 0.6} with 0.1839844641522014
 print(f"Best params: {best_params} with {best_score}")
 
 # ------------------------- FINAL MODEL TRAINING -------------------------
@@ -75,33 +65,10 @@ svr_final = SupportVectorRegression(
 )
 svr_final.fit(X_train, y_train)
 
+
 # ------------------------- CONVERGENCE PLOTS -------------------------
 print("\n---------------- PLOTTING CONVERGENCE ----------------")
-# Only now we plot convergence
-plt.figure(figsize=(12, 4))
-plt.subplot(1, 3, 1)
-plt.plot(svr_final.training_loss["beta_norms"], label="|β - β_prev|")
-plt.xlabel("Iteration")
-plt.ylabel("Beta Update Norm")
-plt.title("Convergence Speed")
-plt.legend()
-
-plt.subplot(1, 3, 2)
-plt.plot(svr_final.training_loss["grad_norms"], label="||∇Q_mu||")
-plt.xlabel("Iteration")
-plt.ylabel("Gradient Norm")
-plt.title("Gradient Magnitude")
-plt.legend()
-
-plt.subplot(1, 3, 3)
-plt.plot(svr_final.training_loss["Q_mu"], label="Q_mu")
-plt.xlabel("Iteration")
-plt.ylabel("Dual Objective (Q_mu)")
-plt.title("Final Loss Convergence")
-plt.legend()
-
-plt.show()
-
+plot_convergence_curves(svr_final.training_loss, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}")
 # ------------------------- VALIDATION PREDICTION -------------------------
 print("\n---------------- VALIDATION PHASE ----------------")
 Y_pred_val = svr_final.predict(X_val)

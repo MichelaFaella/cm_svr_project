@@ -7,7 +7,7 @@ import os
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-from SVM.utility.preprocess import preprocessData, denormalize_price, customRegressionReport  # Your preprocessing function
+from SVM.utility.utility import preprocessData, denormalize_price, customRegressionReport  # Your preprocessing function
 
 print("Loading dataset...")
 dataset = "dataset_diamonds/diamonds_cleaned.csv"

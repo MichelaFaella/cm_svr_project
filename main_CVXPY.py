@@ -1,13 +1,17 @@
 import numpy as np
 import pandas as pd
 import cvxpy as cp
+import matplotlib
+
+matplotlib.use("TkAgg")  # oppure "QtAgg" se hai installato PyQt
 import matplotlib.pyplot as plt
 import os
 import re
 import time
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from SVM.utility.preprocess import preprocessData, denormalize_price, customRegressionReport, denormalize  # Your preprocessing function
-from SVM.utility.Solver import SolverOutputCapture  
+from SVM.utility.utility import preprocessData, denormalize_price, customRegressionReport, \
+    denormalize  # Your preprocessing function
+from SVM.utility.Solver import SolverOutputCapture
 
 # Load dataset
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
@@ -24,7 +28,7 @@ X_train = np.vstack((X_train, X_val))
 y_train = np.concatenate((y_train.flatten(), y_val.flatten()))
 
 # Extract number of samples and features
-n, d = X_train.shape  
+n, d = X_train.shape
 
 # Define hyperparameters
 C = 1.0  # Regularization parameter
@@ -32,11 +36,11 @@ epsilon = 1.0  # Epsilon-insensitive margin for SVR loss function
 
 # ---------------- CVXPY MODEL DEFINITION ---------------------
 
-#Define the variables
-w = cp.Variable(d)      # Weight vector for linear regression model
-b = cp.Variable()       # Bias term
-xi = cp.Variable(n)     # Slack variables for +epsilon
-xi_star = cp.Variable(n) # Slack variables for -epsilon
+# Define the variables
+w = cp.Variable(d)  # Weight vector for linear regression model
+b = cp.Variable()  # Bias term
+xi = cp.Variable(n)  # Slack variables for +epsilon
+xi_star = cp.Variable(n)  # Slack variables for -epsilon
 
 # Define the SVR objective function: minimize regularized loss 
 objective = cp.Minimize(
@@ -59,26 +63,26 @@ prob = cp.Problem(objective, constraints)
 # Capture solver output to analyze convergence behavior
 with SolverOutputCapture() as capture:
     prob.solve(solver=cp.SCS,
-               max_iters=50000,    # Max number of iterations allowed
-               eps_abs=1e-5,       # Absolute Convergence tollerance 
-               eps_rel=1e-5,       # Relative Convergence tolerance
-               scale=0.005,        # Problem scaling factor (affects solver stability)
-               rho_x=1e-4,         # Primal variable scaling parameter
-               verbose=True)       # Enable verbose output for detailed solver information
+               max_iters=50000,  # Max number of iterations allowed
+               eps_abs=1e-5,  # Absolute Convergence tollerance
+               eps_rel=1e-5,  # Relative Convergence tolerance
+               scale=0.005,  # Problem scaling factor (affects solver stability)
+               rho_x=1e-4,  # Primal variable scaling parameter
+               verbose=True)  # Enable verbose output for detailed solver information
 
 # Extract solver statistics
 solver_output = capture.getvalue()
-solver_stats = prob.solver_stats   # Retrieve convergence statistics
+solver_stats = prob.solver_stats  # Retrieve convergence statistics
 
 # Extract optimized model parameters
-w_value = w.value   # Learned weight vector
-b_value = b.value   # Learned bias term
+w_value = w.value  # Learned weight vector
+b_value = b.value  # Learned bias term
 
 # Print optimized parameters
 print(f"Optimized w: {w_value}")
 print(f"Optimized b: {b_value}")
 
-#-------------- MODEL PREDICTION AND DENORMALIZATION -----------------
+# -------------- MODEL PREDICTION AND DENORMALIZATION -----------------
 
 # Compute predicted values for the test set
 y_pred_test = X_test @ w_value + b_value
@@ -93,7 +97,7 @@ X_test_denorm = denormalize(X_test, mean, std)
 
 # Select meaningful feature to visualize (e.g., "carat")
 feature_name = "carat"
-feature_idx = list(data_sampled.columns).index(feature_name) # Get index of the feature
+feature_idx = list(data_sampled.columns).index(feature_name)  # Get index of the feature
 
 # Sort test data for smooth curve plotting
 sorted_idx = np.argsort(X_test_denorm[:, feature_idx])
@@ -120,10 +124,10 @@ objective_values = []
 
 # Iterate through the solver output and extract relevant information
 for match in pattern.finditer(solver_output):
-    iteration = int(match.group(1))             # Iteration number
-    primal_residual = float(match.group(2))     # Primal feasibility residual
-    dual_residual = float(match.group(3))       # Dual feasibility residual
-    objective_value = float(match.group(4))     # Objective function value
+    iteration = int(match.group(1))  # Iteration number
+    primal_residual = float(match.group(2))  # Primal feasibility residual
+    dual_residual = float(match.group(3))  # Dual feasibility residual
+    objective_value = float(match.group(4))  # Objective function value
 
     # Append extracted values to the lists
     iterations.append(iteration)
@@ -162,7 +166,6 @@ timestamp = time.strftime("%Y%m%d-%H%M%S")
 plt.savefig(f"plots/cvxpy/svr_cvxpy_prim_dual_{timestamp}.png")
 plt.show()
 
-
 # ------------------------- EPSILON TUBE PLOTS (REALISTIC CURVE) -------------------------
 print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
 
@@ -190,4 +193,4 @@ plt.show()
 
 # ------------------------- CUSTOM REGRESSION REPORT -------------------------
 print("\n---------------- CUSTOM REGRESSION REPORT ----------------")
-customRegressionReport(y_test_denorm, y_pred_test_denorm, name="CVXPy SVR")
+customRegressionReport(y_test, y_pred_test, name="CVXPy SVR")
