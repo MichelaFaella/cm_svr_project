@@ -19,7 +19,7 @@ matplotlib.use('TkAgg')
 print("Loading dataset...")
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',', header=0)
-data_sampled = data.sample(n=3000, random_state=64).reset_index(drop=True)
+data_sampled = data.sample(n=2000, random_state=64).reset_index(drop=True)
 
 # ------------------------- PREPROCESSING -------------------------
 X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = preprocessData(data_sampled)
@@ -35,21 +35,31 @@ print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
 param_grid_random = {
-    'kernel_type': [KernelType.LINEAR],
-    'C': [0.05],                    # penalizzazione: più alto = meno regolarizzazione
-    'epsilon': [0.1],                   # margine di tolleranza
-    'sigma': [2.5],           # spread del RBF: più basso = più località
-    'degree': [2],                                 # non usato nel RBF ma richiesto dal tuo codice
-    'coef': [0.0],                                 # idem
-    'learning_rate': [0.001],                      # confermato stabile nel tuo training log
-    'momentum': [0.6, 0.7],                             # idem
+    'kernel_type': [KernelType.RBF],
+
+    # Regularization strength: trade-off between bias and variance
+    'C': [2.0],
+
+    # Epsilon-insensitive margin: tolerance zone
+    'epsilon': [0.1],
+
+    # RBF kernel width: controls locality of influence
+    'sigma': [0.5],
+
+    # Required for polynomial (ignored by RBF)
+    'degree': [2],
+    'coef': [0.0],
+
+    # Dual averaging learning rate: stable around 0.01–0.05
+    'learning_rate': [0.001],
+
+    # Not used in dual averaging; kept for API compatibility
+    'momentum': [0.0]
 }
 
-
-
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
-# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.1, 'epsilon': 0.1, 'sigma': 2.5,
-# 'degree': 2, 'coef': 0.0, 'learning_rate': 0.001, 'momentum': 0.6} with 0.1839844641522014
+# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 2.0, 'epsilon': 0.1, 'sigma': 0.5,
+# 'degree': 2, 'coef': 0.0, 'learning_rate': 0.005, 'momentum': 0.0} with 0.08518070679479793
 print(f"Best params: {best_params} with {best_score}")
 
 # ------------------------- FINAL MODEL TRAINING -------------------------

@@ -18,7 +18,7 @@ dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',', header=0)
 
 # Sample 300 instances
-data_sampled = data.sample(n=3000, random_state=42).reset_index(drop=True)
+data_sampled = data.sample(n=2000, random_state=42).reset_index(drop=True)
 
 # Preprocess the dataset: apply normalization and split into train, validation, and test sets
 X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = preprocessData(data_sampled)
