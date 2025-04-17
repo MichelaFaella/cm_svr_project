@@ -1,24 +1,22 @@
 import numpy as np
 import pandas as pd
 import cvxpy as cp
-import matplotlib
-
-matplotlib.use("TkAgg")  # oppure "QtAgg" se hai installato PyQt
 import matplotlib.pyplot as plt
 import os
 import re
 import time
+from SVM.utility.Enum import KernelType
+from SVM.utility.Kernels import compute_kernel
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from SVM.utility.utility import preprocessData, denormalize_price, customRegressionReport, \
-    denormalize  # Your preprocessing function
-from SVM.utility.Solver import SolverOutputCapture
+from SVM.utility.preprocess import preprocessData, denormalize_price, customRegressionReport, denormalize  # Your preprocessing function
+from SVM.utility.Solver import SolverOutputCapture  
 
 # Load dataset
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',', header=0)
 
 # Sample 300 instances
-data_sampled = data.sample(n=2000, random_state=42).reset_index(drop=True)
+data_sampled = data.sample(n=3000, random_state=42).reset_index(drop=True)
 
 # Preprocess the dataset: apply normalization and split into train, validation, and test sets
 X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = preprocessData(data_sampled)
@@ -27,65 +25,87 @@ X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = prepr
 X_train = np.vstack((X_train, X_val))
 y_train = np.concatenate((y_train.flatten(), y_val.flatten()))
 
-# Extract number of samples and features
-n, d = X_train.shape
-
-# Define hyperparameters
+epsilon = 0.8  # Epsilon-insensitive margin for SVR loss function
 C = 1.0  # Regularization parameter
-epsilon = 1.0  # Epsilon-insensitive margin for SVR loss function
+sigma = 1.0  # Parameter for RBF kernel
+kernel_type = KernelType.RBF # Kernel type (RBF, Linear, Polynomial)
+degree = 3 # Degree of polynomial kernel (if used)
+coef = 1.0 # Coefficient term in polynomial kernel
 
-# ---------------- CVXPY MODEL DEFINITION ---------------------
+def solve_svr_dual(X, y, epsilon=0.1, C=1.0, sigma=1.0, kernel_type=KernelType.RBF, degree=3, coef=1.0):
+    N = X.shape[0]
 
-# Define the variables
-w = cp.Variable(d)  # Weight vector for linear regression model
-b = cp.Variable()  # Bias term
-xi = cp.Variable(n)  # Slack variables for +epsilon
-xi_star = cp.Variable(n)  # Slack variables for -epsilon
+    # Define the kernel function (linear kernel)
+    K = compute_kernel(
+            X, X,
+            kernel_type = kernel_type,
+            sigma = sigma,
+            degree = degree,
+            coef = coef
+        )
+    
+    # Define the dual variable (beta)
+    beta = cp.Variable(N) 
 
-# Define the SVR objective function: minimize regularized loss 
-objective = cp.Minimize(
-    0.5 * cp.norm(w, 2) ** 2 + C * cp.sum(xi + xi_star)
-)
+    # Define the objective function
+    linear_term = y @ beta - epsilon * cp.norm1(beta)
+    quadratic_term = 0.5 * cp.quad_form(beta, cp.psd_wrap(K))
 
-# Define the constraint for the epsilon-insensitive margin
-constraints = [
-    y_train - (X_train @ w + b) <= epsilon + xi,  # Upper epsilon margin
-    (X_train @ w + b) - y_train <= epsilon + xi_star,  # Lower epsilon margin
-    xi >= 0,  # Non-negative slack variables
-    xi_star >= 0
-]
+    # Objective: sum(d_i * beta_i) - epsilon * sum(|beta_i|) - 0.5 * sum(beta_i * K_ij * beta_j)
+    objective = cp.Maximize(linear_term - quadratic_term)
 
-# ----------------- SOLVE THE OPTIMIZATION PROBLEM -----------------
+    # Constraints
+    constraints = [
+        beta <= C,
+        beta >= -C,
+        cp.sum(beta) == 0,  # Sum of dual variables must equal zero (KKT condition)
+    ]
 
-# Define and solve the convex optimization problem using CVXPY
-prob = cp.Problem(objective, constraints)
+    # Define the optimization problem
+    prob = cp.Problem(objective, constraints)
+    
+    # Solve the optimization problem
+    with SolverOutputCapture() as capture:
+        prob.solve(solver=cp.ECOS,  # also try cp.CLARABEL or cp.SCS
+                    verbose=True,)
 
-# Capture solver output to analyze convergence behavior
-with SolverOutputCapture() as capture:
-    prob.solve(solver=cp.SCS,
-               max_iters=50000,  # Max number of iterations allowed
-               eps_abs=1e-5,  # Absolute Convergence tollerance
-               eps_rel=1e-5,  # Relative Convergence tolerance
-               scale=0.005,  # Problem scaling factor (affects solver stability)
-               rho_x=1e-4,  # Primal variable scaling parameter
-               verbose=True)  # Enable verbose output for detailed solver information
+    # Retrieve dual variables
+    beta_val = beta.value
 
-# Extract solver statistics
-solver_output = capture.getvalue()
-solver_stats = prob.solver_stats  # Retrieve convergence statistics
+    # Compute bias term (b) using KKT conditions
+    support_indices = np.where((np.abs(beta_val) > 1e-5) & (np.abs(beta_val) < C - 1e-5))[0]
+    if len(support_indices) == 0:
+        print("Warning: No support vectors found for bias estimation.")
+        b = 0
+    else:
+        b_candidates = []
+        for i in support_indices:
+            b_i = y[i] - np.sum(beta_val * K[i, :]) - epsilon * np.sign(beta_val[i])
+            b_candidates.append(b_i)
+        b = np.mean(b_candidates)
 
-# Extract optimized model parameters
-w_value = w.value  # Learned weight vector
-b_value = b.value  # Learned bias term
+    # For linear kernel, w is explicitly available
+    w = beta_val @ X if kernel_type == KernelType.LINEAR else None
 
-# Print optimized parameters
-print(f"Optimized w: {w_value}")
-print(f"Optimized b: {b_value}")
+    solver_output = capture.getvalue()
+    solver_stats = prob.solver_stats
 
-# -------------- MODEL PREDICTION AND DENORMALIZATION -----------------
+    print(f"Bias (b) estimated from support vectors: {b}")
+    if w is not None:
+        print(f"Linear weights (w): {w}")
+
+    return w, b, solver_output, solver_stats, beta_val, prob.value
+
+def predict_svr(X_train, X_test, beta_val, b, kernel_type, sigma, degree, coef):
+    K_test = compute_kernel(X_test, X_train, kernel_type, sigma, degree, coef)
+    return K_test @ beta_val + b
+
+#-------------- MODEL PREDICTION AND DENORMALIZATION -----------------
+
+w_value, b_value, solver_output, solver_stats, beta, prob = solve_svr_dual(X_train, y_train, epsilon=epsilon, C=C, sigma=sigma, kernel_type=kernel_type)
 
 # Compute predicted values for the test set
-y_pred_test = X_test @ w_value + b_value
+y_pred_test = predict_svr(X_train, X_test, beta, b_value, kernel_type, sigma, degree, coef)
 
 # Denormalize predictions
 y_pred_test_denorm = denormalize_price(y_pred_test, y_mean, y_std)
@@ -97,7 +117,7 @@ X_test_denorm = denormalize(X_test, mean, std)
 
 # Select meaningful feature to visualize (e.g., "carat")
 feature_name = "carat"
-feature_idx = list(data_sampled.columns).index(feature_name)  # Get index of the feature
+feature_idx = list(data_sampled.columns).index(feature_name) # Get index of the feature
 
 # Sort test data for smooth curve plotting
 sorted_idx = np.argsort(X_test_denorm[:, feature_idx])
@@ -124,10 +144,10 @@ objective_values = []
 
 # Iterate through the solver output and extract relevant information
 for match in pattern.finditer(solver_output):
-    iteration = int(match.group(1))  # Iteration number
-    primal_residual = float(match.group(2))  # Primal feasibility residual
-    dual_residual = float(match.group(3))  # Dual feasibility residual
-    objective_value = float(match.group(4))  # Objective function value
+    iteration = int(match.group(1))             # Iteration number
+    primal_residual = float(match.group(2))     # Primal feasibility residual
+    dual_residual = float(match.group(3))       # Dual feasibility residual
+    objective_value = float(match.group(4))     # Objective function value
 
     # Append extracted values to the lists
     iterations.append(iteration)
@@ -166,6 +186,7 @@ timestamp = time.strftime("%Y%m%d-%H%M%S")
 plt.savefig(f"plots/cvxpy/svr_cvxpy_prim_dual_{timestamp}.png")
 plt.show()
 
+
 # ------------------------- EPSILON TUBE PLOTS (REALISTIC CURVE) -------------------------
 print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
 
@@ -193,4 +214,4 @@ plt.show()
 
 # ------------------------- CUSTOM REGRESSION REPORT -------------------------
 print("\n---------------- CUSTOM REGRESSION REPORT ----------------")
-customRegressionReport(y_test, y_pred_test, name="CVXPy SVR")
+customRegressionReport(y_test_denorm, y_pred_test_denorm, name="CVXPy SVR")
