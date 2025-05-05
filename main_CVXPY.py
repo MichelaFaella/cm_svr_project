@@ -8,7 +8,7 @@ import time
 from SVM.utility.Enum import KernelType
 from SVM.utility.Kernels import compute_kernel
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from SVM.utility.preprocess import preprocessData, denormalize_price, customRegressionReport, denormalize  # Your preprocessing function
+from SVM.utility.utility import preprocessData, denormalize_price, customRegressionReport, denormalize  # Your preprocessing function
 from SVM.utility.Solver import SolverOutputCapture  
 
 # Load dataset

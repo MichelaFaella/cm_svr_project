@@ -34,28 +34,30 @@ print("Shape y_train:", y_train.shape)
 print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
+from SVM.utility.Enum import KernelType
+
 param_grid_random = {
-    'kernel_type': [KernelType.RBF],
+    # proviamo sia RBF, sia POLY e LINEAR
+    'kernel_type': [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],
 
-    # Regularization strength: trade-off between bias and variance
-    'C': [2.0],
+    # trade‐off complessità vs. errore
+    'C':       [0.1, 1.0, 10.0, 100.0],
 
-    # Epsilon-insensitive margin: tolerance zone
-    'epsilon': [0.1],
+    # larghezza della zona ε‐insensitive
+    'epsilon': [0.01, 0.1, 1.0],
 
-    # RBF kernel width: controls locality of influence
-    'sigma': [0.5],
+    # per RBF: scala del kernel
+    'sigma':   [0.1, 0.5, 1.0, 2.0],
 
-    # Required for polynomial (ignored by RBF)
-    'degree': [2],
-    'coef': [0.0],
+    # per POLY: grado e coefficiente
+    'degree': [2, 3, 4],
+    'coef':   [0.0, 1.0, 10.0],
 
-    # Dual averaging learning rate: stable around 0.01–0.05
-    'learning_rate': [0.001],
-
-    # Not used in dual averaging; kept for API compatibility
-    'momentum': [0.0]
+    # controllo della convergence
+    'max_iter': [500, 1000],
+    'tol':      [1e-3, 1e-6],
 }
+
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
 # Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 2.0, 'epsilon': 0.1, 'sigma': 0.5,
@@ -70,15 +72,14 @@ svr_final = SupportVectorRegression(
     sigma=best_params["sigma"],
     degree=best_params["degree"],
     coef=best_params["coef"],
-    learning_rate=best_params["learning_rate"],
-    momentum=best_params["momentum"]
 )
 svr_final.fit(X_train, y_train)
 
 
 # ------------------------- CONVERGENCE PLOTS -------------------------
 print("\n---------------- PLOTTING CONVERGENCE ----------------")
-plot_convergence_curves(svr_final.training_loss, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}")
+plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}")
+
 # ------------------------- VALIDATION PREDICTION -------------------------
 print("\n---------------- VALIDATION PHASE ----------------")
 Y_pred_val = svr_final.predict(X_val)

@@ -33,8 +33,6 @@ def grid_search_svr(X_train, y_train, X_val, y_val, param_grid):
             sigma=params.get("sigma", 1.0),
             degree=params.get("degree", 3),
             coef=params.get("coef", 1),
-            learning_rate=params["learning_rate"],
-            momentum=params.get("momentum", 0.9)  # default momentum if not provided
         )
 
         model.fit(X_train, y_train)
@@ -82,8 +80,6 @@ def random_search_svr(X_train, y_train, X_val, y_val, param_grid, n_iter=10):
             sigma=params.get("sigma", 1.0),
             degree=params.get("degree", 3),
             coef=params.get("coef", 1),
-            learning_rate=params["learning_rate"],
-            momentum=params.get("momentum", 0.9)  # add momentum
         )
 
         model.fit(X_train, y_train)
