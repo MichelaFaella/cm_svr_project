@@ -16,7 +16,7 @@ class SupportVectorRegression:
                  sigma: float = 1.0,
                  degree: int = 3,
                  coef: float = 1.0,
-                 max_iter: int = 1000,
+                 max_iter: int = 500,
                  tol: float = 1e-6):
         # regularization parameter
         self.C = C
@@ -141,38 +141,34 @@ class SupportVectorRegression:
 
             # gradient of -Q_μ at x_k
             grad = (
-                    -self.Y_train
-                    + self.epsilon * self._smooth_abs_derivative(x_k, self.epsilon, self.mu)
-                    + K @ x_k
+                -self.Y_train
+                + self.epsilon * self._smooth_abs_derivative(x_k, self.epsilon, self.mu)
+                + K @ x_k
             )
-            grad_norm = np.linalg.norm(grad)
-            grad_norms.append(grad_norm)
+            grad_norms.append(np.linalg.norm(grad))
 
             # compute and store Q_μ(x_k)
-            Q_mu = (
-                    self.Y_train @ x_k
-                    - self.epsilon * np.sum(np.abs(x_k))
-                    - 0.5 * x_k @ (K @ x_k)
+            Q_mu_list.append(
+                self.Y_train @ x_k
+                - self.epsilon * np.sum(np.abs(x_k))
+                - 0.5 * x_k @ (K @ x_k)
             )
-            Q_mu_list.append(Q_mu)
 
             # proximal-gradient step for y
-            y_k1 = x_k - (1.0 / L) * grad
-            y_k1 = self._project_box_sum_zero(y_k1, self.C)
+            y_k1 = self._project_box_sum_zero(x_k - (1.0 / L) * grad, self.C)
+            beta_norms.append(np.linalg.norm(y_k1 - y_k))
 
-            # record change in y (beta_norms)
-            beta_diff = np.linalg.norm(y_k1 - y_k)
-            beta_norms.append(beta_diff)
+            print(f"[Iter {k:4d}] Q_mu={Q_mu_list[-1]:.4e} | grad_norm={grad_norms[-1]:.4e} | Δβ={beta_norms[-1]:.4e}")
 
-            # log current status
-            print(f"[Iter {k:4d}] Q_mu={Q_mu:.4e} | grad_norm={grad_norm:.4e} | Δβ={beta_diff:.4e}")
-
-            # update z
-            z_k = z_k - (alpha_k / L) * grad
+            # momentum update (prox Eq. 3.11):
+            z_k = self._project_box_sum_zero(
+                z_k - (alpha_k / L) * grad,
+                self.C
+            )
 
             # check convergence
-            if beta_diff < self.tol:
-                print(f"[Converged at iter {k}] Δβ={beta_diff:.2e}")
+            if beta_norms[-1] < self.tol:
+                print(f"[Converged at iter {k}] Δβ={beta_norms[-1]:.2e}")
                 y_k = y_k1
                 break
 
@@ -190,10 +186,21 @@ class SupportVectorRegression:
             'Q_mu': Q_mu_list
         }
 
-        # 9) compute bias term from non‐saturated support vectors
+        # 9) compute moving-average versions of each metric for smoother plots
+        window = 50
+        kernel = np.ones(window) / window
+        for key in ('beta_norms', 'grad_norms', 'Q_mu'):
+            arr = np.array(self.training_history[key])
+            smooth = np.convolve(arr, kernel, mode='valid')
+            self.training_history[f'{key}_smooth'] = smooth.tolist()
+        start = window // 2
+        end = start + len(self.training_history['beta_norms_smooth'])
+        self.training_history['iter_smooth'] = list(range(start, end))
+
+        # 10) compute bias term from non-saturated support vectors
         sv = (
-                (np.abs(self.beta) > 1e-8)
-                & (np.abs(np.abs(self.beta) - self.C) > 1e-8)
+            (np.abs(self.beta) > 1e-8)
+            & (np.abs(np.abs(self.beta) - self.C) > 1e-8)
         )
         if np.any(sv):
             b_vals = self.Y_train[sv] - (K @ self.beta)[sv]

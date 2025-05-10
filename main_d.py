@@ -34,8 +34,7 @@ print("Shape y_train:", y_train.shape)
 print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
-from SVM.utility.Enum import KernelType
-
+"""
 param_grid_random = {
     # proviamo sia RBF, sia POLY e LINEAR
     'kernel_type': [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],
@@ -56,8 +55,25 @@ param_grid_random = {
     # controllo della convergence
     'max_iter': [500, 1000],
     'tol':      [1e-3, 1e-6],
-}
+}"""
 
+param_grid_random = {
+    # proviamo sia RBF, sia POLY e LINEAR
+    'kernel_type': [KernelType.RBF],
+
+    # trade‐off complessità vs. errore
+    'C': [10],
+
+    # larghezza della zona ε‐insensitive
+    'epsilon': [0.5],
+
+    # per RBF: scala del kernel
+    'sigma': [0.5],
+
+    # per POLY: grado e coefficiente
+    'degree': [2],
+    'coef': [0.0],
+}
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
 # Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 2.0, 'epsilon': 0.1, 'sigma': 0.5,
@@ -74,7 +90,6 @@ svr_final = SupportVectorRegression(
     coef=best_params["coef"],
 )
 svr_final.fit(X_train, y_train)
-
 
 # ------------------------- CONVERGENCE PLOTS -------------------------
 print("\n---------------- PLOTTING CONVERGENCE ----------------")
@@ -125,7 +140,7 @@ Y_pred_val_sorted = Y_pred_val_denorm[sorted_idx_val]
 # Sort test data by the selected feature (for plotting)
 sorted_idx_test = np.argsort(X_test_denorm[:, feature_idx])
 X_test_sorted_denorm = X_test_denorm[sorted_idx_test]  # for x-axis
-X_test_sorted_norm = X_test[sorted_idx_test]            # to predict
+X_test_sorted_norm = X_test[sorted_idx_test]  # to predict
 y_test_sorted = y_test_denorm[sorted_idx_test]
 
 # Predict on normalized features
@@ -160,7 +175,8 @@ plt.show()
 # Plot: Test set (CORRETTO)
 plt.figure(figsize=(10, 6))
 plt.scatter(X_test_sorted_denorm[:, feature_idx], y_test_sorted, alpha=0.4, color="orange", label="True Data (Test)")
-plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted, color='blue', linewidth=2, label="SVR Prediction")
+plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted, color='blue', linewidth=2,
+         label="SVR Prediction")
 plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted + epsilon_denorm, 'r--', label="+\u03b5 Tube")
 plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted - epsilon_denorm, 'r--', label="-\u03b5 Tube")
 plt.fill_between(X_test_sorted_denorm[:, feature_idx],
@@ -176,7 +192,6 @@ plt.tight_layout()
 plt.savefig(f"plots/test/svr_epsilon_tube_test{timestamp}.png")
 plt.show()
 
-
 # ------------------------- METRICS -------------------------
 print("\n---------------- VALIDATION METRICS ----------------")
 customRegressionReport(y_val, Y_pred_val, name="Validation")
@@ -188,6 +203,5 @@ print("max β:", np.max(svr_final.beta))
 print("min β:", np.min(svr_final.beta))
 print("support vector attivi:", np.sum((np.abs(svr_final.beta) > 1e-3) & (np.abs(svr_final.beta) < svr_final.C)))
 print("bias b:", svr_final.b)
-
 
 print("\nAll plots and reports saved in the 'plots' directory.")
