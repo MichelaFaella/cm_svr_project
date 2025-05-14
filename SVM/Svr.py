@@ -148,9 +148,10 @@ class SupportVectorRegression:
             grad_norms.append(np.linalg.norm(grad))
 
             # compute and store Q_μ(x_k)
+            smoothed_abs = self.mu * np.sum(np.log(1 + np.exp((np.abs(x_k) - self.epsilon) / self.mu)))
             Q_mu_list.append(
                 self.Y_train @ x_k
-                - self.epsilon * np.sum(np.abs(x_k))
+                - smoothed_abs
                 - 0.5 * x_k @ (K @ x_k)
             )
 

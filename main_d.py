@@ -62,10 +62,10 @@ param_grid_random = {
     'kernel_type': [KernelType.RBF],
 
     # trade‐off complessità vs. errore
-    'C': [10],
+    'C': [1],
 
     # larghezza della zona ε‐insensitive
-    'epsilon': [0.5],
+    'epsilon': [1.8],
 
     # per RBF: scala del kernel
     'sigma': [0.5],
@@ -76,8 +76,6 @@ param_grid_random = {
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
-# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 2.0, 'epsilon': 0.1, 'sigma': 0.5,
-# 'degree': 2, 'coef': 0.0, 'learning_rate': 0.005, 'momentum': 0.0} with 0.08518070679479793
 print(f"Best params: {best_params} with {best_score}")
 
 # ------------------------- FINAL MODEL TRAINING -------------------------
