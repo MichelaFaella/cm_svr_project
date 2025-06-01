@@ -34,45 +34,30 @@ print("Shape y_train:", y_train.shape)
 print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
-"""
+# Best params: {'kernel_type': <KernelType.LINEAR: 'linear'>, 'C': 0.5, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 0, 'max_iter': 1000, 'tol': 1e-06} with 0.15239996002951847
+# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.1, 'epsilon': 0.5, 'sigma': 1.0, 'degree': 1, 'coef': 0, 'max_iter': 1000, 'tol': 1e-06} with 0.13287697318425615
+# Best params: {'kernel_type': <KernelType.POLYNOMIAL: 'polynomial'>, 'C': 0.1, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 2, 'max_iter': 1000, 'tol': 1e-06} with 0.16772349977957632
+
 param_grid_random = {
     # proviamo sia RBF, sia POLY e LINEAR
-    'kernel_type': [KernelType.RBF, KernelType.POLYNOMIAL, KernelType.LINEAR],
+    'kernel_type': [KernelType.POLYNOMIAL],
 
     # trade‐off complessità vs. errore
-    'C':       [0.1, 1.0, 10.0, 100.0],
+    'C':       [0.1],
 
     # larghezza della zona ε‐insensitive
-    'epsilon': [0.01, 0.1, 1.0],
+    'epsilon': [1.0, 0.5, 2.0],
 
     # per RBF: scala del kernel
-    'sigma':   [0.1, 0.5, 1.0, 2.0],
+    'sigma':   [1.0],
 
     # per POLY: grado e coefficiente
-    'degree': [2, 3, 4],
-    'coef':   [0.0, 1.0, 10.0],
+    'degree': [1],
+    'coef':   [0, 1, 2],
 
     # controllo della convergence
-    'max_iter': [500, 1000],
-    'tol':      [1e-3, 1e-6],
-}"""
-
-param_grid_random = {
-    # proviamo sia RBF, sia POLY e LINEAR
-    'kernel_type': [KernelType.RBF],
-
-    # trade‐off complessità vs. errore
-    'C': [1],
-
-    # larghezza della zona ε‐insensitive
-    'epsilon': [1.8],
-
-    # per RBF: scala del kernel
-    'sigma': [0.5],
-
-    # per POLY: grado e coefficiente
-    'degree': [2],
-    'coef': [0.0],
+    'max_iter': [1000],
+    'tol':      [1e-6],
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
@@ -195,7 +180,7 @@ print("\n---------------- VALIDATION METRICS ----------------")
 customRegressionReport(y_val, Y_pred_val, name="Validation")
 
 print("\n---------------- TEST METRICS ----------------")
-customRegressionReport(y_test, Y_pred_test, name="Test")
+customRegressionReport(y_test_denorm, Y_pred_test_denorm, name="Test")
 
 print("max β:", np.max(svr_final.beta))
 print("min β:", np.min(svr_final.beta))
