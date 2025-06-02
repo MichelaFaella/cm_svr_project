@@ -35,21 +35,21 @@ print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
 # Best params: {'kernel_type': <KernelType.LINEAR: 'linear'>, 'C': 0.5, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 0, 'max_iter': 1000, 'tol': 1e-06} with 0.15239996002951847
-# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.1, 'epsilon': 0.5, 'sigma': 1.0, 'degree': 1, 'coef': 0, 'max_iter': 1000, 'tol': 1e-06} with 0.13287697318425615
+# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.1, 'epsilon': 0.5, 'sigma': 0.8, 'degree': 1, 'coef': 0, 'max_iter': 1000, 'tol': 1e-06} with 0.13287697318425615
 # Best params: {'kernel_type': <KernelType.POLYNOMIAL: 'polynomial'>, 'C': 0.1, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 2, 'max_iter': 1000, 'tol': 1e-06} with 0.16772349977957632
 
 param_grid_random = {
     # proviamo sia RBF, sia POLY e LINEAR
-    'kernel_type': [KernelType.POLYNOMIAL],
+    'kernel_type': [KernelType.RBF],
 
     # trade‐off complessità vs. errore
     'C':       [0.1],
 
     # larghezza della zona ε‐insensitive
-    'epsilon': [1.0, 0.5, 2.0],
+    'epsilon': [0.5],
 
     # per RBF: scala del kernel
-    'sigma':   [1.0],
+    'sigma':   [0.8],
 
     # per POLY: grado e coefficiente
     'degree': [1],

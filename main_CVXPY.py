@@ -32,7 +32,7 @@ y_train_final = np.concatenate((y_train, y_val))
 # ------------------------- HYPERPARAMETERS -------------------------
 C = 0.1
 epsilon = 0.1
-sigma = 0.5
+sigma = 1.0
 kernel_type = KernelType.RBF
 degree = 1
 coef = 0.0
@@ -42,15 +42,21 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef):
     N = X.shape[0]
     K = compute_kernel(X, X, kernel_type, sigma, degree, coef)
     beta = cp.Variable(N)
+
+    # Minimizzazione equivalente alla precedente massimizzazione
     linear = y @ beta - epsilon * cp.norm1(beta)
     quadratic = 0.5 * cp.quad_form(beta, cp.psd_wrap(K))
-    prob = cp.Problem(cp.Maximize(linear - quadratic), [
+    objective = cp.Minimize(quadratic - linear)
+
+    prob = cp.Problem(objective, [
         beta <= C,
         beta >= -C,
         cp.sum(beta) == 0,
     ])
+
     with SolverOutputCapture() as capture:
-        prob.solve(solver=cp.SCS, verbose=True)
+        prob.solve(solver=cp.OSQP, verbose=True)
+
     beta_val = beta.value
     support_indices = np.where((np.abs(beta_val) > 1e-5) & (np.abs(beta_val) < C - 1e-5))[0]
     b = np.mean([y[i] - np.sum(beta_val * K[i, :]) - epsilon * np.sign(beta_val[i]) for i in support_indices]) if len(support_indices) > 0 else 0
@@ -71,49 +77,11 @@ y_test_denorm = denormalize_price(y_test, y_mean, y_std)
 Y_pred_test_denorm = denormalize_price(Y_pred_test, y_mean, y_std)
 X_test_denorm = denormalize(X_test, mean, std)
 
-# ------------------------- CONVERGENCE PLOTS -------------------------
-print("\n---------------- PLOTTING CONVERGENCE ----------------")
+# ------------------------- EPSILON TUBE PLOT -------------------------
+print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
 timestamp = time.strftime("%Y%m%d-%H%M%S")
 os.makedirs("plots/cvxpy", exist_ok=True)
 
-pattern = re.compile(r"\s*(\d+)\s+(\S+)\s+(\S+)\s+(\S+)")
-iters, pcosts, dcosts, gaps = [], [], [], []
-for line in solver_output.splitlines():
-    match = pattern.match(line)
-    if match:
-        iters.append(int(match.group(1)))
-        pcosts.append(float(match.group(2)))
-        dcosts.append(float(match.group(3)))
-        gaps.append(float(match.group(4)))
-
-if iters:
-    plt.figure(figsize=(10, 6))
-    plt.plot(iters, pcosts, label="Primal Cost", marker='o')
-    plt.plot(iters, dcosts, label="Dual Cost", marker='s')
-    plt.xlabel("Iteration")
-    plt.ylabel("Cost")
-    plt.title("SCS: Primal vs Dual Cost")
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(f"plots/cvxpy/scs_costs_{timestamp}.png")
-    plt.show()
-
-    plt.figure(figsize=(10, 6))
-    plt.plot(iters, gaps, label="Duality Gap", marker='^', color='green')
-    plt.xlabel("Iteration")
-    plt.ylabel("Gap")
-    plt.yscale("log")
-    plt.title("SCS: Duality Gap")
-    plt.grid(True)
-    plt.tight_layout()
-    plt.savefig(f"plots/cvxpy/scs_gap_{timestamp}.png")
-    plt.show()
-else:
-    print("Nessun dato di convergenza trovato. Assicurati di usare SCS con verbose=True.")
-
-# ------------------------- EPSILON TUBE PLOT -------------------------
-print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
 feature_name = "carat"
 feature_idx = list(data_sampled.columns).index(feature_name)
 sorted_idx = np.argsort(X_test_denorm[:, feature_idx])
@@ -142,7 +110,7 @@ plt.show()
 
 # ------------------------- METRICS -------------------------
 print("\n---------------- TEST METRICS ----------------")
-customRegressionReport(y_test_denorm, Y_pred_test_denorm, name="CVXPy SVR")
+customRegressionReport(y_test_denorm, Y_pred_test_denorm, name="CVXPy SVR (OSQP)")
 
 print("max β:", np.max(beta))
 print("min β:", np.min(beta))
