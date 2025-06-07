@@ -40,20 +40,20 @@ print("First 5 normalized y_train:", y_train[:5])
 
 param_grid_random = {
     # proviamo sia RBF, sia POLY e LINEAR
-    'kernel_type': [KernelType.RBF],
+    'kernel_type': [KernelType.LINEAR],
 
     # trade‐off complessità vs. errore
     'C':       [0.1],
 
     # larghezza della zona ε‐insensitive
-    'epsilon': [0.5],
+    'epsilon': [0.8], # 0.5
 
     # per RBF: scala del kernel
-    'sigma':   [0.8],
+    'sigma':   [1.0], # 0.8
 
     # per POLY: grado e coefficiente
     'degree': [1],
-    'coef':   [0, 1, 2],
+    'coef':   [2], #[0, 1, 2],
 
     # controllo della convergence
     'max_iter': [1000],
@@ -95,7 +95,11 @@ print("Denorm std:", np.std(Y_pred_val_denorm))
 print("\n---------------- TRAINING ON TRAIN + VALIDATION ----------------")
 X_train_final = np.vstack((X_train, X_val))
 y_train_final = np.hstack((y_train, y_val))
+start_time_final = time.time()
 svr_final.fit(X_train_final, y_train_final)
+end_time_final = time.time()
+training_time_final = end_time_final - start_time_final
+print(f"Training time (train + val): {training_time_final:.4f} seconds")
 print("max(β) VAL:", np.max(np.abs(svr_final.beta)))
 print("bias b VAL:", svr_final.b)
 
