@@ -223,7 +223,14 @@ def plot_convergence_curves(hist, title_prefix="SVR"):
     beta = np.array(hist['beta_norms_smooth'])
     grad = np.array(hist['grad_norms_smooth'])
     Q = np.array(hist['Q_mu_smooth'])
-    gap = np.array(hist['gap_smooth'])
+    gap = np.array(hist['duality_gap_smooth'])
+
+    # Smooth duality gap from raw data
+    window = 50
+    kernel = np.ones(window) / window
+    gap_arr = np.array(hist['duality_gap'])
+    gap_smooth = np.convolve(gap_arr, kernel, mode='valid')
+    gap_iter_smooth = np.arange(window//2, window//2 + len(gap_smooth))
 
     fig, axes = plt.subplots(1, 4, figsize=(20, 4))
 
@@ -254,19 +261,26 @@ def plot_convergence_curves(hist, title_prefix="SVR"):
     ax.grid(True);
     ax.legend()
 
-    # 4) Gap su scala log–log
+   # Plot smoothed duality gap from true primal - dual values
     ax = axes[3]
-    # filtra i valori positivi
-    mask = gap > 0
-    ax.loglog(it[mask], gap[mask], label=r"Gap: $Q^* - Q_\mu(k)$")
-    ax.loglog(it[mask], gap[0] / it[mask], '--', label=r"$O(1/k)$ ref.")
-    ax.set_title("Gap Convergenza")
-    ax.set_xlabel("Iterazione $k$")
-    ax.set_ylabel("Gap sull'obiettivo")
-    ax.grid(True, which='both', ls=':')
+    ax.plot(gap_iter_smooth, gap_smooth, label="Smoothed Duality Gap")
+    ax.set_title("Duality Gap Convergence")
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Primal - Dual")
+    ax.grid(True)
     ax.legend()
 
-    plt.suptitle(f"{title_prefix} Convergenza (smooth)", y=1.02)
+    # Optional reference line for O(1/k)
+    k_ref = np.linspace(1, it.max(), 100)
+    ref_gap = gap[0] * (k_ref / k_ref[0])**-1
+    ax.plot(k_ref, ref_gap, "--", label="O(1/k) reference", color="yellow")
+    ax.legend()
+
+    # Set both axes to log scale
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+
+    plt.suptitle(f"{title_prefix} Convergenza (smooth)", y=1.05)
     plt.tight_layout()
 
     fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"

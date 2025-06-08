@@ -1,5 +1,6 @@
 import numpy as np
 from SVM.utility.Enum import KernelType
+from scipy.special import softplus
 
 
 class SupportVectorRegression:
@@ -96,6 +97,13 @@ class SupportVectorRegression:
                 break
         return u
 
+    # helper function for smoothed ε-insensitive loss
+    def smoothed_epsilon_insensitive_loss(self, residuals, mu, epsilon):
+        abs_r = np.abs(residuals)
+        x = (abs_r - epsilon) / mu
+        return mu * np.sum(softplus(x))
+
+
     def fit(self, X: np.ndarray, y: np.ndarray) -> "SupportVectorRegression":
         """
         Train by minimizing the smoothed dual via Nesterov acceleration.
@@ -106,6 +114,7 @@ class SupportVectorRegression:
         self.X_train = X.copy()
         self.Y_train = y.copy()
         n = X.shape[0]
+        self.b = 0.0 
 
         # 1) build Gram matrix
         K = self._kernel_matrix(X)
@@ -124,6 +133,7 @@ class SupportVectorRegression:
         Q_mu_list = []
         grad_norms = []
         beta_norms = []
+        duality_gaps = []
 
         # 5) initialize accelerated sequences
         y_k = np.zeros(n)
@@ -149,17 +159,26 @@ class SupportVectorRegression:
 
             # compute and store Q_μ(x_k)
             smoothed_abs = self.mu * np.sum(np.log(1 + np.exp((np.abs(x_k) - self.epsilon) / self.mu)))
-            Q_mu_list.append(
-                self.Y_train @ x_k
-                - smoothed_abs
-                - 0.5 * x_k @ (K @ x_k)
-            )
-
+            Q_mu = self.Y_train @ x_k - smoothed_abs - 0.5 * x_k @ (K @ x_k)
+            Q_mu_list.append(Q_mu)
+            
             # proximal-gradient step for y
             y_k1 = self._project_box_sum_zero(x_k - (1.0 / L) * grad, self.C)
             beta_norms.append(np.linalg.norm(y_k1 - y_k))
 
-            print(f"[Iter {k:4d}] Q_mu={Q_mu_list[-1]:.4e} | grad_norm={grad_norms[-1]:.4e} | Δβ={beta_norms[-1]:.4e}")
+            # Compute primal objective
+            f_beta = K @ y_k1 + self.b  # add bias term here
+            residuals = self.Y_train - f_beta
+            primal_obj = 0.5 * y_k1 @ (K @ y_k1) + self.C * self.smoothed_epsilon_insensitive_loss(residuals, self.mu, self.epsilon)
+
+            # Compute duality gap
+            duality_gap = primal_obj - Q_mu
+            duality_gaps.append(duality_gap)
+
+            print(f"[Iter {k}] primal_obj={primal_obj} | dual_obj={Q_mu} | gap={primal_obj - Q_mu}")
+
+
+            print(f"[Iter {k:4d}] Q_mu={Q_mu_list[-1]:.4e} | grad_norm={grad_norms[-1]:.4e} | Δβ={beta_norms[-1]:.4e} | gap={duality_gap:.4e}")
 
             # momentum update (prox Eq. 3.11):
             z_k = self._project_box_sum_zero(
@@ -168,8 +187,13 @@ class SupportVectorRegression:
             )
 
             # check convergence
-            if beta_norms[-1] < self.tol:
+            """if beta_norms[-1] < self.tol:
                 print(f"[Converged at iter {k}] Δβ={beta_norms[-1]:.2e}")
+                y_k = y_k1
+                break"""
+
+            if k > 100 and duality_gap < self.tol:
+                print(f"[Converged at iter {k}] duality gap={duality_gap:.2e}")
                 y_k = y_k1
                 break
 
@@ -184,13 +208,9 @@ class SupportVectorRegression:
         self.training_history = {
             'beta_norms': beta_norms,
             'grad_norms': grad_norms,
-            'Q_mu': Q_mu_list
+            'Q_mu': Q_mu_list,
+            'duality_gap': duality_gaps
         }
-
-        # Compute gap
-        Q = np.array(Q_mu_list)
-        Q_star = Q.max()
-        self.training_history['gap'] = (Q_star - Q).tolist()
 
         # 9) compute moving-average versions of each metric for smoother plots
         window = 50
@@ -203,10 +223,10 @@ class SupportVectorRegression:
         end = start + len(self.training_history['beta_norms_smooth'])
         self.training_history['iter_smooth'] = list(range(start, end))
 
-        Qs = np.array(self.training_history['Q_mu_smooth'])
-        Qstar = Qs[-1]  # ottimo approssimato dal valore finale
-        gap = Qstar - Qs  # gap[k] = Q* – Q_mu_smooth(k)
-        self.training_history['gap_smooth'] = gap.tolist()
+        # After smoothing Q_mu
+        duality_arr = np.array(self.training_history['duality_gap'])
+        duality_gap_smooth = np.convolve(duality_arr, kernel, mode='valid')
+        self.training_history['duality_gap_smooth'] = duality_gap_smooth.tolist()
 
         # 10) compute bias term from non-saturated support vectors
         sv = (
