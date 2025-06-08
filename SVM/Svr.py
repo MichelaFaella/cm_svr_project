@@ -187,6 +187,11 @@ class SupportVectorRegression:
             'Q_mu': Q_mu_list
         }
 
+        # Compute gap
+        Q = np.array(Q_mu_list)
+        Q_star = Q.max()
+        self.training_history['gap'] = (Q_star - Q).tolist()
+
         # 9) compute moving-average versions of each metric for smoother plots
         window = 50
         kernel = np.ones(window) / window
@@ -197,6 +202,11 @@ class SupportVectorRegression:
         start = window // 2
         end = start + len(self.training_history['beta_norms_smooth'])
         self.training_history['iter_smooth'] = list(range(start, end))
+
+        Qs = np.array(self.training_history['Q_mu_smooth'])
+        Qstar = Qs[-1]  # ottimo approssimato dal valore finale
+        gap = Qstar - Qs  # gap[k] = Q* – Q_mu_smooth(k)
+        self.training_history['gap_smooth'] = gap.tolist()
 
         # 10) compute bias term from non-saturated support vectors
         sv = (

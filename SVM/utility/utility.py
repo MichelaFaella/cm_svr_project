@@ -134,7 +134,6 @@ def remove_outliers(df, method="iqr"):
         raise ValueError("Metodo non valido. Usa 'zscore' o 'iqr'.")
 
 
-
 def preprocessData(data, outlier_method="iqr"):
     # Remove outliers
     data = remove_outliers(data, method=outlier_method)
@@ -216,49 +215,61 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
     plt.show()
 
 
-import matplotlib.pyplot as plt
-import os
-import time
-
-def plot_convergence_curves(training_loss_dict, title_prefix="SVR"):
+def plot_convergence_curves(hist, title_prefix="SVR"):
     os.makedirs("plots/convergence", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-    beta_norms = training_loss_dict["beta_norms"]
-    grad_norms = training_loss_dict["grad_norms"]
-    Q_mu = training_loss_dict["Q_mu"]
+    it = np.array(hist['iter_smooth'])
+    beta = np.array(hist['beta_norms_smooth'])
+    grad = np.array(hist['grad_norms_smooth'])
+    Q = np.array(hist['Q_mu_smooth'])
+    gap = np.array(hist['gap_smooth'])
 
-    plt.figure(figsize=(15, 4))
+    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
 
-    # Plot: ∥β - β_prev∥
-    plt.subplot(1, 3, 1)
-    plt.plot(beta_norms, label="‖β - β_prev‖")
-    plt.xlabel("Iteration")
-    plt.ylabel("Update Norm")
-    plt.title("Convergence Speed")
-    plt.grid(True)
-    plt.legend()
+    # 1) Δβ
+    ax = axes[0]
+    ax.plot(it, beta, label="‖β - β_prev‖")
+    ax.set_title("Convergence Speed")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Update Norm")
+    ax.grid(True);
+    ax.legend()
 
-    # Plot: ‖∇Q_μ‖
-    plt.subplot(1, 3, 2)
-    plt.plot(grad_norms, label="‖∇Q_μ(β)‖", color="orange")
-    plt.xlabel("Iteration")
-    plt.ylabel("Gradient Norm")
-    plt.title("Gradient Magnitude")
-    plt.grid(True)
-    plt.legend()
+    # 2) ∥∇Q_μ∥
+    ax = axes[1]
+    ax.plot(it, grad, label="‖∇Q_μ‖")
+    ax.set_title("Gradient Magnitude")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Gradient Norm")
+    ax.grid(True);
+    ax.legend()
 
-    # Plot: Q_μ(β)
-    plt.subplot(1, 3, 3)
-    plt.plot(Q_mu, label="Q_μ(β)", color="green")
-    plt.xlabel("Iteration")
-    plt.ylabel("Dual Objective")
-    plt.title("Objective Convergence")
-    plt.grid(True)
-    plt.legend()
+    # 3) Dual objective Q_μ
+    ax = axes[2]
+    ax.plot(it, Q, label="Q_μ(β)")
+    ax.set_title("Objective Convergence")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Q_μ")
+    ax.grid(True);
+    ax.legend()
 
+    # 4) Gap su scala log–log
+    ax = axes[3]
+    # filtra i valori positivi
+    mask = gap > 0
+    ax.loglog(it[mask], gap[mask], label=r"Gap: $Q^* - Q_\mu(k)$")
+    ax.loglog(it[mask], gap[0] / it[mask], '--', label=r"$O(1/k)$ ref.")
+    ax.set_title("Gap Convergenza")
+    ax.set_xlabel("Iterazione $k$")
+    ax.set_ylabel("Gap sull'obiettivo")
+    ax.grid(True, which='both', ls=':')
+    ax.legend()
+
+    plt.suptitle(f"{title_prefix} Convergenza (smooth)", y=1.02)
     plt.tight_layout()
-    fname = f"plots/convergence/{title_prefix}_convergence_{timestamp}.png"
+
+    fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
     plt.savefig(fname)
-    print(f"[✓] Saved convergence plot to {fname}")
+    print(f"[✓] Saved full convergence plot to {fname}")
     plt.show()

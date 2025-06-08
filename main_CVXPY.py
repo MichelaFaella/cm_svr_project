@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib
+
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import os
@@ -37,6 +38,7 @@ kernel_type = KernelType.RBF
 degree = 1
 coef = 2
 
+
 # ------------------------- SOLVE SVR DUALE -------------------------
 def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=1000, tol=1e-6):
     N = X.shape[0]
@@ -66,8 +68,13 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
         if beta.value is not None:
             beta.value = beta_val_prev
 
+        # --- TIMER START ---
+        t0 = time.perf_counter()
         with SolverOutputCapture() as capture:
             prob.solve(solver=cp.OSQP, warm_start=True, verbose=True)
+        wall_time = time.perf_counter() - t0
+        print(f"[Iter {it}] Solve time: {wall_time:.3f} seconds")
+        # --- TIMER END ---
 
         beta_val = beta.value
 
@@ -91,15 +98,16 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
         print(f"[Iter {it}] Q={Q:.4e} | grad_norm={grad_norm:.4e} | Δβ={update_norm:.4e}")
 
         if update_norm < tol:
+            print(update_norm)
             print(f"Converged at iteration {it} with Δβ={update_norm:.2e}")
             break
 
         beta_val_prev = beta_val
 
-
     support_indices = np.where((np.abs(beta_val) > 1e-5) & (np.abs(beta_val) < C - 1e-5))[0]
-    b = np.mean([y[i] - np.sum(beta_val * K[i, :]) - epsilon * np.sign(beta_val[i]) for i in support_indices]) if len(support_indices) > 0 else 0
-    
+    b = np.mean([y[i] - np.sum(beta_val * K[i, :]) - epsilon * np.sign(beta_val[i]) for i in support_indices]) if len(
+        support_indices) > 0 else 0
+
     history = {
         'beta_history': beta_history,
         'grad_norms': grad_norms,
@@ -109,15 +117,18 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
 
     return beta_val, b, capture.getvalue(), history
 
+
 def predict_svr(X_train, X_test, beta, b, kernel_type, sigma, degree, coef):
     K_test = compute_kernel(X_test, X_train, kernel_type, sigma, degree, coef)
     return K_test @ beta + b
 
+
 # ------------------------- TRAINING + PREDICTION -------------------------
 print("\n---------------- TRAINING ----------------")
-start_time_final = time.time()
-beta, b, solver_output, history = solve_svr_dual(X_train_final, y_train_final, epsilon, C, sigma, kernel_type, degree, coef)
-end_time_final = time.time()
+start_time_final = time.perf_counter()
+beta, b, solver_output, history = solve_svr_dual(X_train_final, y_train_final, epsilon, C, sigma, kernel_type, degree,
+                                                 coef)
+end_time_final = time.perf_counter()
 training_time_final = end_time_final - start_time_final
 print(f"Training time CVXPY: {training_time_final:.4f} seconds")
 

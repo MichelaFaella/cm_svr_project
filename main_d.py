@@ -40,7 +40,7 @@ print("First 5 normalized y_train:", y_train[:5])
 
 param_grid_random = {
     # proviamo sia RBF, sia POLY e LINEAR
-    'kernel_type': [KernelType.LINEAR],
+    'kernel_type': [KernelType.RBF],
 
     # trade‐off complessità vs. errore
     'C':       [0.1],
@@ -56,8 +56,8 @@ param_grid_random = {
     'coef':   [2], #[0, 1, 2],
 
     # controllo della convergence
-    'max_iter': [1000],
-    'tol':      [1e-6],
+    'max_iter': [3000],
+    'tol':      [1e-14],
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
@@ -71,6 +71,8 @@ svr_final = SupportVectorRegression(
     sigma=best_params["sigma"],
     degree=best_params["degree"],
     coef=best_params["coef"],
+    max_iter=best_params["max_iter"],
+    tol=best_params["tol"]
 )
 svr_final.fit(X_train, y_train)
 
@@ -95,9 +97,10 @@ print("Denorm std:", np.std(Y_pred_val_denorm))
 print("\n---------------- TRAINING ON TRAIN + VALIDATION ----------------")
 X_train_final = np.vstack((X_train, X_val))
 y_train_final = np.hstack((y_train, y_val))
-start_time_final = time.time()
+start_time_final = time.perf_counter()
 svr_final.fit(X_train_final, y_train_final)
-end_time_final = time.time()
+
+end_time_final = time.perf_counter()
 training_time_final = end_time_final - start_time_final
 print(f"Training time (train + val): {training_time_final:.4f} seconds")
 print("max(β) VAL:", np.max(np.abs(svr_final.beta)))
