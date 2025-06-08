@@ -219,70 +219,71 @@ def plot_convergence_curves(hist, title_prefix="SVR"):
     os.makedirs("plots/convergence", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-    it = np.array(hist['iter_smooth'])
-    beta = np.array(hist['beta_norms_smooth'])
-    grad = np.array(hist['grad_norms_smooth'])
-    Q = np.array(hist['Q_mu_smooth'])
-    gap = np.array(hist['duality_gap_smooth'])
+    # iterazioni “raw” e curve smoothed
+    it_s    = np.array(hist['iter_smooth'])
+    beta_s  = np.array(hist['beta_norms_smooth'])
+    grad_s  = np.array(hist['grad_norms_smooth'])
+    Q_s     = np.array(hist['Q_mu_smooth'])
 
-    # Smooth duality gap from raw data
-    window = 50
-    kernel = np.ones(window) / window
-    gap_arr = np.array(hist['duality_gap'])
-    gap_smooth = np.convolve(gap_arr, kernel, mode='valid')
-    gap_iter_smooth = np.arange(window//2, window//2 + len(gap_smooth))
+    # recupero Q_mu raw e calcolo gap duale raw
+    Q_raw   = np.array(hist['Q_mu'])
+    Q_star  = Q_raw.max()                 # <-- prendo il massimo come Q*
+    gap_raw = Q_star - Q_raw
+    gap_raw = np.maximum(gap_raw, 0.0)    # <-- elimino gap negativi
+    k_raw   = np.arange(1, len(gap_raw) + 1)
 
-    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 
     # 1) Δβ
-    ax = axes[0]
-    ax.plot(it, beta, label="‖β - β_prev‖")
+    ax = axes[0, 0]
+    ax.plot(it_s, beta_s, color='tab:blue', label="‖β - β_prev‖ (smoothed)")
     ax.set_title("Convergence Speed")
     ax.set_xlabel("Iterazione")
     ax.set_ylabel("Update Norm")
-    ax.grid(True);
-    ax.legend()
-
-    # 2) ∥∇Q_μ∥
-    ax = axes[1]
-    ax.plot(it, grad, label="‖∇Q_μ‖")
-    ax.set_title("Gradient Magnitude")
-    ax.set_xlabel("Iterazione")
-    ax.set_ylabel("Gradient Norm")
-    ax.grid(True);
-    ax.legend()
-
-    # 3) Dual objective Q_μ
-    ax = axes[2]
-    ax.plot(it, Q, label="Q_μ(β)")
-    ax.set_title("Objective Convergence")
-    ax.set_xlabel("Iterazione")
-    ax.set_ylabel("Q_μ")
-    ax.grid(True);
-    ax.legend()
-
-   # Plot smoothed duality gap from true primal - dual values
-    ax = axes[3]
-    ax.plot(gap_iter_smooth, gap_smooth, label="Smoothed Duality Gap")
-    ax.set_title("Duality Gap Convergence")
-    ax.set_xlabel("Iteration")
-    ax.set_ylabel("Primal - Dual")
     ax.grid(True)
     ax.legend()
 
-    # Optional reference line for O(1/k)
-    k_ref = np.linspace(1, it.max(), 100)
-    ref_gap = gap[0] * (k_ref / k_ref[0])**-1
-    ax.plot(k_ref, ref_gap, "--", label="O(1/k) reference", color="yellow")
+    # 2) ∥∇Q_μ∥
+    ax = axes[0, 1]
+    ax.plot(it_s, grad_s, color='tab:orange', label="‖∇Q_μ‖ (smoothed)")
+    ax.set_title("Gradient Magnitude")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Gradient Norm")
+    ax.grid(True)
     ax.legend()
 
-    # Set both axes to log scale
-    ax.set_xscale('log')
-    ax.set_yscale('log')
+    # 3) Dual objective Q_μ
+    ax = axes[1, 0]
+    ax.plot(it_s, Q_s, color='tab:green', label="Q_μ(β) (smoothed)")
+    ax.set_title("Objective Convergence")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Q_μ")
+    ax.grid(True)
+    ax.legend()
 
-    plt.suptitle(f"{title_prefix} Convergenza (smooth)", y=1.05)
+    # 4) Duality gap Δ_k = Q* - Q_μ(y_k)
+    ax = axes[1, 1]
+    ax.plot(k_raw, gap_raw, color='tab:red', label="Dual Gap (raw)")
+
+    # se esistono gap > 0, uso log–log con retta di riferimento O(1/k)
+    mask = gap_raw > 0
+    if mask.any():
+        k_pos   = k_raw[mask]
+        gap_pos = gap_raw[mask]
+        k_ref   = np.logspace(np.log10(k_pos.min()), np.log10(k_pos.max()), 100)
+        ref     = gap_pos[0] * (k_ref / k_pos[0]) ** -1
+        ax.plot(k_ref, ref, '--', color='tab:purple', label="O(1/k) ref.")
+        ax.set_xscale('log')
+        ax.set_yscale('log')
+
+    ax.set_title("Duality Gap Convergence")
+    ax.set_xlabel("Iterazione k")
+    ax.set_ylabel("Δ_k = Q* - Q_μ(y_k)")
+    ax.grid(True, which='both', ls=':')
+    ax.legend()
+
+    plt.suptitle(f"{title_prefix} Convergenza", y=1.02)
     plt.tight_layout()
-
     fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
     plt.savefig(fname)
     print(f"[✓] Saved full convergence plot to {fname}")

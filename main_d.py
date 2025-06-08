@@ -39,25 +39,25 @@ print("First 5 normalized y_train:", y_train[:5])
 # Best params: {'kernel_type': <KernelType.POLYNOMIAL: 'polynomial'>, 'C': 0.1, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 2, 'max_iter': 1000, 'tol': 1e-06} with 0.16772349977957632
 
 param_grid_random = {
-    # proviamo sia RBF, sia POLY e LINEAR
+    # proviamo sia RBF, sia POLYNOMIAL e LINEAR
     'kernel_type': [KernelType.RBF],
 
     # trade‐off complessità vs. errore
-    'C':       [0.1],
+    'C':       [0.01],
 
     # larghezza della zona ε‐insensitive
-    'epsilon': [0.8], # 0.5
+    'epsilon': [0.8],
 
     # per RBF: scala del kernel
-    'sigma':   [1.0], # 0.8
+    'sigma':   [0.5],
 
     # per POLY: grado e coefficiente
     'degree': [1],
-    'coef':   [2], #[0, 1, 2],
+    'coef':   [0],
 
     # controllo della convergence
-    'max_iter': [3000],
-    'tol':      [1e-14],
+    'max_iter': [500],
+    'tol':      [1e-3],
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
