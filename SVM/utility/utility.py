@@ -215,7 +215,7 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
     plt.show()
 
 
-def plot_convergence_curves(hist, title_prefix="SVR"):
+def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     os.makedirs("plots/convergence", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
@@ -271,16 +271,43 @@ def plot_convergence_curves(hist, title_prefix="SVR"):
         k_pos   = k_raw[mask]
         gap_pos = gap_raw[mask]
         k_ref   = np.logspace(np.log10(k_pos.min()), np.log10(k_pos.max()), 100)
-        ref     = gap_pos[0] * (k_ref / k_pos[0]) ** -1
-        ax.plot(k_ref, ref, '--', color='tab:purple', label="O(1/k) ref.")
-        ax.set_xscale('log')
-        ax.set_yscale('log')
+        ref     = gap_pos[0] * (k_ref / k_pos[0]) ** -2
+        ax.plot(k_ref, ref, '--', color='tab:purple', label="O(1/k²) ref.")
+        #ax.set_xscale('log')
+        #ax.set_yscale('log')
 
     ax.set_title("Duality Gap Convergence")
     ax.set_xlabel("Iterazione k")
     ax.set_ylabel("Δ_k = Q* - Q_μ(y_k)")
     ax.grid(True, which='both', ls=':')
     ax.legend()
+
+    # --- 5) Plot Iterations vs Epsilon (O(1/ε)) ---
+    epsilons = np.logspace(np.log10(tol / 10), np.log10(1e-1), 10)
+    iterations_to_eps = []
+
+    for eps in epsilons:
+        idxs = np.where(gap_raw <= eps)[0]
+        if idxs.size > 0:
+            iterations_to_eps.append(idxs[0] + 1)
+        else:
+            iterations_to_eps.append(np.nan)
+
+    # New figure for iteration vs epsilon plot
+    plt.figure(figsize=(6, 4))
+    plt.loglog(epsilons, iterations_to_eps, 'o-', label="Observed")
+    ref_iter = iterations_to_eps[0] * (epsilons[0] / epsilons)  # O(1/ε) reference
+    plt.loglog(epsilons, ref_iter, '--', color='purple', label=r'O(1/ε) ref.')
+
+    plt.xlabel(r'Tolleranza ε')
+    plt.ylabel('Iterazioni per ε')
+    plt.title('Complessità Iterativa vs Tolleranza')
+    plt.grid(True, which='both', ls=':')
+    plt.legend()
+    fname_eps = f"plots/convergence/{title_prefix}_iter_vs_epsilon_{timestamp}.png"
+    plt.savefig(fname_eps)
+    print(f"[✓] Saved iteration vs epsilon plot to {fname_eps}")
+    plt.show()
 
     plt.suptitle(f"{title_prefix} Convergenza", y=1.02)
     plt.tight_layout()

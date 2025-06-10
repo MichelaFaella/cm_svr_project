@@ -43,10 +43,10 @@ param_grid_random = {
     'kernel_type': [KernelType.RBF],
 
     # trade‐off complessità vs. errore
-    'C':       [0.01],
+    'C':       [0.1],
 
     # larghezza della zona ε‐insensitive
-    'epsilon': [0.8],
+    'epsilon': [0.6],
 
     # per RBF: scala del kernel
     'sigma':   [0.5],
@@ -56,8 +56,8 @@ param_grid_random = {
     'coef':   [0],
 
     # controllo della convergence
-    'max_iter': [500],
-    'tol':      [1e-3],
+    'max_iter': [1000],
+    'tol':      [1e-8],
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
@@ -78,7 +78,7 @@ svr_final.fit(X_train, y_train)
 
 # ------------------------- CONVERGENCE PLOTS -------------------------
 print("\n---------------- PLOTTING CONVERGENCE ----------------")
-plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}")
+plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
 
 # ------------------------- VALIDATION PREDICTION -------------------------
 print("\n---------------- VALIDATION PHASE ----------------")
@@ -160,7 +160,7 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(f"plots/validation/svr_epsilon_tube_validation{timestamp}.png")
-plt.show()
+#plt.show()
 
 # Plot: Test set (CORRETTO)
 plt.figure(figsize=(10, 6))
@@ -180,7 +180,7 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(f"plots/test/svr_epsilon_tube_test{timestamp}.png")
-plt.show()
+#plt.show()
 
 # ------------------------- METRICS -------------------------
 print("\n---------------- VALIDATION METRICS ----------------")
