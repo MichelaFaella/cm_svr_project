@@ -203,8 +203,8 @@ class SupportVectorRegression:
         self.beta = y_k
 
         # 8) compute duality gaps – usa il massimo incrementale come Q*
-        Q_star_running = np.maximum.accumulate(Q_mu_list)
-        gaps = [qs - q for qs, q in zip(Q_star_running, Q_mu_list)]
+        gaps = [p - d for p, d in zip(primal_vals, Q_mu_list)]
+
 
         # 9) save full history for plotting
         self.training_history = {
