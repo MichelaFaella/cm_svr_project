@@ -56,7 +56,7 @@ param_grid_random = {
     'coef':   [0],
 
     # controllo della convergence
-    'max_iter': [1000],
+    'max_iter': [200],
     'tol':      [1e-8],
 }
 

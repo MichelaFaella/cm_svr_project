@@ -181,7 +181,7 @@ class SupportVectorRegression:
                          + self.C * self.smoothed_epsilon_insensitive_loss(residuals, self.mu, self.epsilon)
             primal_vals.append(primal_obj)
 
-            print(f"[Iter {k:4d}] primal={primal_obj:.4e} | dual={Q_mu:.4e} | Δβ={beta_norms[-1]:.4e}")
+            print(f"[Iter {k:4d}] primal={primal_vals[-1]:.4e} | dual={Q_mu:.4e} | Δβ={beta_norms[-1]:.4e} | grad_norms={grad_norms[-1]:.4e}")
 
             # momentum update (prox Eq. 3.11):
             z_k = self._project_box_sum_zero(
