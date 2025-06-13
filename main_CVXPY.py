@@ -31,16 +31,16 @@ X_train_final = np.vstack((X_train, X_val))
 y_train_final = np.concatenate((y_train, y_val))
 
 # ------------------------- HYPERPARAMETERS -------------------------
-C = 0.01
-epsilon = 0.8
+C = 0.1
+epsilon = 0.6
 sigma = 0.5
 kernel_type = KernelType.RBF
 degree = 1
-coef = 2
+coef = 0
 
 
 # ------------------------- SOLVE SVR DUALE -------------------------
-def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=1000, tol=1e-6):
+def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=200, tol=1e-8):
     N = X.shape[0]
     K = compute_kernel(X, X, kernel_type, sigma, degree, coef)
     beta = cp.Variable(N)
