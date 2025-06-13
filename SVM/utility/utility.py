@@ -220,19 +220,20 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
     # iterazioni “raw” e curve smoothed
-    it_s    = np.array(hist['iter_smooth'])
-    beta_s  = np.array(hist['beta_norms_smooth'])
-    grad_s  = np.array(hist['grad_norms_smooth'])
-    Q_s     = np.array(hist['Q_mu_smooth'])
+    it_s = np.array(hist['iter_smooth'])
+    beta_s = np.array(hist['beta_norms_smooth'])
+    grad_s = np.array(hist['grad_norms_smooth'])
+    Q_s = np.array(hist['Q_mu_smooth'])
 
     # recupero Q_mu raw e calcolo gap duale raw
-    Q_raw   = np.array(hist['Q_mu'])
-    Q_star  = Q_raw.max()                 # <-- prendo il massimo come Q*
-    gap_raw = Q_star - Q_raw
-    gap_raw = np.maximum(gap_raw, 0.0)    # <-- elimino gap negativi
-    k_raw   = np.arange(1, len(gap_raw) + 1)
+    Q_raw = np.array(hist['Q_mu'])
+    P_raw = np.array(hist["primal_obj"])
+    D_raw = np.array(hist['Q_mu'])
+    gap_raw = P_raw - D_raw
+    k_raw = np.arange(1, len(gap_raw)+1)
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.subplots_adjust(hspace=0.4)
 
     # 1) Δβ
     ax = axes[0, 0]
@@ -268,17 +269,17 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     # se esistono gap > 0, uso log–log con retta di riferimento O(1/k)
     mask = gap_raw > 0
     if mask.any():
-        k_pos   = k_raw[mask]
+        k_pos = k_raw[mask]
         gap_pos = gap_raw[mask]
-        k_ref   = np.logspace(np.log10(k_pos.min()), np.log10(k_pos.max()), 100)
-        ref     = gap_pos[0] * (k_ref / k_pos[0]) ** -2
+        k_ref = np.logspace(np.log10(k_pos.min()), np.log10(k_pos.max()), 100)
+        ref = gap_pos[0] * (k_ref / k_pos[0]) ** -2
         ax.plot(k_ref, ref, '--', color='tab:purple', label="O(1/k²) ref.")
-        #ax.set_xscale('log')
-        #ax.set_yscale('log')
+        ax.set_xscale('log')
+        ax.set_yscale('log')
 
     ax.set_title("Duality Gap Convergence")
     ax.set_xlabel("Iterazione k")
-    ax.set_ylabel("Δ_k = Q* - Q_μ(y_k)")
+    ax.set_ylabel(r"$P_k - D_k$")
     ax.grid(True, which='both', ls=':')
     ax.legend()
 
@@ -304,14 +305,15 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     plt.title('Complessità Iterativa vs Tolleranza')
     plt.grid(True, which='both', ls=':')
     plt.legend()
+    plt.gca().invert_xaxis()
     fname_eps = f"plots/convergence/{title_prefix}_iter_vs_epsilon_{timestamp}.png"
     plt.savefig(fname_eps)
     print(f"[✓] Saved iteration vs epsilon plot to {fname_eps}")
     plt.show()
 
-    plt.suptitle(f"{title_prefix} Convergenza", y=1.02)
-    plt.tight_layout()
+    fig.suptitle(f"{title_prefix} Convergenza", y=1.02)
+    fig.tight_layout()
     fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
-    plt.savefig(fname)
+    fig.savefig(fname)
     print(f"[✓] Saved full convergence plot to {fname}")
     plt.show()

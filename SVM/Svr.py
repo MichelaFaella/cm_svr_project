@@ -170,18 +170,18 @@ class SupportVectorRegression:
                 & (np.abs(np.abs(y_k1) - self.C) > 1e-8)
             )
             if np.any(sv):
-                b_k1 = np.mean(self.Y_train[sv] - (K @ y_k1)[sv])
+                b_k1 = np.mean(self.Y_train[sv] - (K @ x_k)[sv])
             else:
                 b_k1 = 0.0
 
             # Compute primal objective
-            f_beta = K @ y_k1 + b_k1
+            f_beta = K @ x_k + b_k1
             residuals = self.Y_train - f_beta
-            primal_obj = 0.5 * y_k1 @ (K @ y_k1) \
+            primal_obj = 0.5 * x_k @ (K @ x_k) \
                          + self.C * self.smoothed_epsilon_insensitive_loss(residuals, self.mu, self.epsilon)
             primal_vals.append(primal_obj)
 
-            print(f"[Iter {k:4d}] primal={primal_obj:.4e} | dual={Q_mu:.4e} | Δβ={beta_norms[-1]:.4e}")
+            print(f"[Iter {k:4d}] primal={primal_vals[-1]:.4e} | dual={Q_mu:.4e} | Δβ={beta_norms[-1]:.4e} | grad_norm={grad_norms[-1]} | ")
 
             # momentum update (prox Eq. 3.11):
             z_k = self._project_box_sum_zero(
@@ -204,7 +204,8 @@ class SupportVectorRegression:
 
         # 8) compute duality gaps – usa il massimo incrementale come Q*
         gaps = [p - d for p, d in zip(primal_vals, Q_mu_list)]
-
+        relative_gaps = [(p - d) / (abs(p) + self.epsilon) for p, d in zip(primal_vals, Q_mu_list)]
+        print(f"duality_gap= {gaps[-1]}, relative_gaps={relative_gaps[-1]}")
 
         # 9) save full history for plotting
         self.training_history = {

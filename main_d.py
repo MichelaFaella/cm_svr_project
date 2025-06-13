@@ -19,7 +19,7 @@ matplotlib.use('TkAgg')
 print("Loading dataset...")
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',', header=0)
-data_sampled = data.sample(n=2000, random_state=64).reset_index(drop=True)
+data_sampled = data.sample(n=7000, random_state=64).reset_index(drop=True)
 
 # ------------------------- PREPROCESSING -------------------------
 X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = preprocessData(data_sampled)
@@ -43,21 +43,21 @@ param_grid_random = {
     'kernel_type': [KernelType.RBF],
 
     # trade‐off complessità vs. errore
-    'C':       [0.1],
+    'C':       [0.05],
 
     # larghezza della zona ε‐insensitive
-    'epsilon': [0.6],
+    'epsilon': [1.5],
 
     # per RBF: scala del kernel
-    'sigma':   [0.5],
+    'sigma':   [2.0],
 
     # per POLY: grado e coefficiente
     'degree': [1],
-    'coef':   [0],
+    'coef':   [0.0],
 
     # controllo della convergence
     'max_iter': [1000],
-    'tol':      [1e-8],
+    'tol':      [1e-6],
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
@@ -160,7 +160,7 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(f"plots/validation/svr_epsilon_tube_validation{timestamp}.png")
-#plt.show()
+plt.show()
 
 # Plot: Test set (CORRETTO)
 plt.figure(figsize=(10, 6))
@@ -180,7 +180,7 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.savefig(f"plots/test/svr_epsilon_tube_test{timestamp}.png")
-#plt.show()
+plt.show()
 
 # ------------------------- METRICS -------------------------
 print("\n---------------- VALIDATION METRICS ----------------")
