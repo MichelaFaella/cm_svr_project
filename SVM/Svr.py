@@ -98,10 +98,18 @@ class SupportVectorRegression:
         return u
 
     # helper function for smoothed ε-insensitive loss
-    def smoothed_epsilon_insensitive_loss(self, residuals, mu, epsilon):
+    @staticmethod
+    def smoothed_epsilon_insensitive_loss(residuals, mu, epsilon):
         abs_r = np.abs(residuals)
         x = (abs_r - epsilon) / mu
         return mu * np.sum(softplus(x))
+
+    @staticmethod
+    def _smooth_abs_derivative(beta: np.ndarray, epsilon: float, mu: float) -> np.ndarray:
+        abs_beta = np.abs(beta)
+        x = (abs_beta - epsilon) / mu
+        sigmoid = 1.0 / (1.0 + np.exp(-x))
+        return np.sign(beta) * sigmoid
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "SupportVectorRegression":
         """
@@ -109,7 +117,6 @@ class SupportVectorRegression:
         Records beta_norms, grad_norms, Q_mu and duality gap at each iteration,
         and prints logs so you can monitor convergence.
         """
-        # store training data
         self.X_train = X.copy()
         self.Y_train = y.copy()
         n = X.shape[0]
@@ -149,9 +156,9 @@ class SupportVectorRegression:
 
             # gradient of -Q_μ at x_k
             grad = (
-                -self.Y_train
-                + self.epsilon * self._smooth_abs_derivative(x_k, self.epsilon, self.mu)
-                + K @ x_k
+                    -self.Y_train
+                    + self.epsilon * self._smooth_abs_derivative(x_k, self.epsilon, self.mu)
+                    + K @ x_k
             )
             grad_norms.append(np.linalg.norm(grad))
 
@@ -166,8 +173,8 @@ class SupportVectorRegression:
 
             # compute bias from current support vectors for primal
             sv = (
-                (np.abs(y_k1) > 1e-8)
-                & (np.abs(np.abs(y_k1) - self.C) > 1e-8)
+                    (np.abs(y_k1) > 1e-8)
+                    & (np.abs(np.abs(y_k1) - self.C) > 1e-8)
             )
             if np.any(sv):
                 b_k1 = np.mean(self.Y_train[sv] - (K @ x_k)[sv])
@@ -181,42 +188,63 @@ class SupportVectorRegression:
                          + self.C * self.smoothed_epsilon_insensitive_loss(residuals, self.mu, self.epsilon)
             primal_vals.append(primal_obj)
 
-            print(f"[Iter {k:4d}] primal={primal_vals[-1]:.4e} | dual={Q_mu:.4e} | Δβ={beta_norms[-1]:.4e} | grad_norm={grad_norms[-1]} | ")
+            print(
+                f"[Iter {k:4d}] primal={primal_obj:.4e} | dual={Q_mu:.4e} | Δβ={beta_norms[-1]:.4e} | grad_norm={grad_norms[-1]} | ")
 
-            # momentum update (prox Eq. 3.11):
+            # momentum update
             z_k = self._project_box_sum_zero(
                 z_k - (alpha_k / L) * grad,
                 self.C
             )
 
-            # check convergence on Δβ
-            if beta_norms[-1] < self.tol:
+            # check convergence
+            if beta_norms[-1] < self.tol and grad_norms[-1] < self.tol:
                 print(f"[Converged at iter {k}] Δβ={beta_norms[-1]:.2e}")
                 y_k = y_k1
                 break
 
-            # prepare for next iteration
             y_k = y_k1
             A_k = A_k1
 
         # 7) store solution
         self.beta = y_k
 
-        # 8) compute duality gaps – usa il massimo incrementale come Q*
-        gaps = [p - d for p, d in zip(primal_vals, Q_mu_list)]
-        relative_gaps = [(p - d) / (abs(p) + self.epsilon) for p, d in zip(primal_vals, Q_mu_list)]
-        print(f"duality_gap= {gaps[-1]}, relative_gaps={relative_gaps[-1]}")
+        # 8) compute final bias term from non‐saturated support vectors
+        sv = (
+                (np.abs(self.beta) > 1e-8)
+                & (np.abs(np.abs(self.beta) - self.C) > 1e-8)
+        )
+        if np.any(sv):
+            b_vals = self.Y_train[sv] - (K @ self.beta)[sv]
+            self.b = np.mean(b_vals)
+        else:
+            self.b = np.mean(self.Y_train - K @ self.beta)
 
-        # 9) save full history for plotting
+        # 9) compute corrected duality gap using final β and b
+        f_beta_final = K @ self.beta + self.b
+        residuals_final = self.Y_train - f_beta_final
+        primal_final = 0.5 * self.beta @ (K @ self.beta) + \
+                       self.C * self.smoothed_epsilon_insensitive_loss(residuals_final, self.mu, self.epsilon)
+        smoothed_abs_final = self.mu * np.sum(np.log(1 + np.exp((np.abs(self.beta) - self.epsilon) / self.mu)))
+        dual_final = self.Y_train @ self.beta - smoothed_abs_final - 0.5 * self.beta @ (K @ self.beta)
+
+        duality_gap = primal_final - dual_final
+        relative_gap = duality_gap / (abs(primal_final) + self.epsilon)
+        print(f"[✓] Final duality gap = {duality_gap:.4e}, relative = {relative_gap:.4e}")
+
+        # 10) save full history
         self.training_history = {
             'beta_norms': beta_norms,
             'grad_norms': grad_norms,
             'Q_mu': Q_mu_list,
             'primal_obj': primal_vals,
-            'duality_gap': gaps
+            'duality_gap': [p - d for p, d in zip(primal_vals, Q_mu_list)],
+            'duality_gap_final': duality_gap,
+            'primal_final': primal_final,
+            'dual_final': dual_final
         }
 
-        # 10) compute moving‐average versions for smoother plots
+        # 11) smoothed versions
         window = 50
         kernel = np.ones(window) / window
         for key in ('beta_norms', 'grad_norms', 'Q_mu', 'duality_gap'):
@@ -226,17 +254,6 @@ class SupportVectorRegression:
         start = window // 2
         length = len(self.training_history['beta_norms_smooth'])
         self.training_history['iter_smooth'] = list(range(start, start + length))
-
-        # 11) compute final bias term from non‐saturated support vectors
-        sv = (
-            (np.abs(self.beta) > 1e-8)
-            & (np.abs(np.abs(self.beta) - self.C) > 1e-8)
-        )
-        if np.any(sv):
-            b_vals = self.Y_train[sv] - (K @ self.beta)[sv]
-            self.b = np.mean(b_vals)
-        else:
-            self.b = np.mean(self.Y_train - K @ self.beta)
 
         return self
 

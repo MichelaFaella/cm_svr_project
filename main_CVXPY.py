@@ -18,7 +18,7 @@ from SVM.utility.Solver import SolverOutputCapture
 print("Loading dataset...")
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',')
-data_sampled = data.sample(n=2000, random_state=64).reset_index(drop=True)
+data_sampled = data.sample(n=7000, random_state=64).reset_index(drop=True)
 
 # ------------------------- PREPROCESSING -------------------------
 X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = preprocessData(data_sampled)
@@ -31,8 +31,8 @@ X_train_final = np.vstack((X_train, X_val))
 y_train_final = np.concatenate((y_train, y_val))
 
 # ------------------------- HYPERPARAMETERS -------------------------
-C = 0.1
-epsilon = 0.6
+C = 0.5
+epsilon = 0.1
 sigma = 0.5
 kernel_type = KernelType.RBF
 degree = 1

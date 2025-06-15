@@ -19,7 +19,7 @@ matplotlib.use('TkAgg')
 print("Loading dataset...")
 dataset = "dataset_diamonds/diamonds_cleaned.csv"
 data = pd.read_csv(dataset, sep=',', header=0)
-data_sampled = data.sample(n=7000, random_state=64).reset_index(drop=True)
+data_sampled = data.sample(n=10000, random_state=64).reset_index(drop=True)
 
 # ------------------------- PREPROCESSING -------------------------
 X_train, y_train, X_val, y_val, X_test, y_test, y_mean, y_std, mean, std = preprocessData(data_sampled)
@@ -39,25 +39,14 @@ print("First 5 normalized y_train:", y_train[:5])
 # Best params: {'kernel_type': <KernelType.POLYNOMIAL: 'polynomial'>, 'C': 0.1, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 2, 'max_iter': 1000, 'tol': 1e-06} with 0.16772349977957632
 
 param_grid_random = {
-    # proviamo sia RBF, sia POLYNOMIAL e LINEAR
     'kernel_type': [KernelType.RBF],
-
-    # trade‐off complessità vs. errore
-    'C':       [0.05],
-
-    # larghezza della zona ε‐insensitive
-    'epsilon': [1.5],
-
-    # per RBF: scala del kernel
-    'sigma':   [2.0],
-
-    # per POLY: grado e coefficiente
-    'degree': [1],
+    'C':       [0.5],
+    'epsilon': [0.5],
+    'sigma':   [0.5],
+    'degree': [2],
     'coef':   [0.0],
-
-    # controllo della convergence
     'max_iter': [1000],
-    'tol':      [1e-6],
+    'tol': [1e-10],
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)
@@ -78,7 +67,7 @@ svr_final.fit(X_train, y_train)
 
 # ------------------------- CONVERGENCE PLOTS -------------------------
 print("\n---------------- PLOTTING CONVERGENCE ----------------")
-plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
+#plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
 
 # ------------------------- VALIDATION PREDICTION -------------------------
 print("\n---------------- VALIDATION PHASE ----------------")
@@ -162,7 +151,7 @@ plt.tight_layout()
 plt.savefig(f"plots/validation/svr_epsilon_tube_validation{timestamp}.png")
 plt.show()
 
-# Plot: Test set (CORRETTO)
+# Plot: Test set
 plt.figure(figsize=(10, 6))
 plt.scatter(X_test_sorted_denorm[:, feature_idx], y_test_sorted, alpha=0.4, color="orange", label="True Data (Test)")
 plt.plot(X_test_sorted_denorm[:, feature_idx], Y_pred_test_denorm_sorted, color='blue', linewidth=2,
