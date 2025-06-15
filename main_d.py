@@ -40,12 +40,12 @@ print("First 5 normalized y_train:", y_train[:5])
 
 param_grid_random = {
     'kernel_type': [KernelType.RBF],
-    'C':       [0.5],
-    'epsilon': [0.5],
-    'sigma':   [0.5],
+    'C':       [0.01],
+    'epsilon': [0.1],
+    'sigma':   [1.0],
     'degree': [2],
     'coef':   [0.0],
-    'max_iter': [1000],
+    'max_iter': [700],
     'tol': [1e-10],
 }
 
@@ -67,7 +67,7 @@ svr_final.fit(X_train, y_train)
 
 # ------------------------- CONVERGENCE PLOTS -------------------------
 print("\n---------------- PLOTTING CONVERGENCE ----------------")
-#plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
+plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
 
 # ------------------------- VALIDATION PREDICTION -------------------------
 print("\n---------------- VALIDATION PHASE ----------------")
