@@ -95,15 +95,15 @@ class SupportVectorRegression:
         x = (abs_r - epsilon) / mu
         return mu * np.sum(softplus(x))
 
-    @staticmethod
-    def _smooth_abs_derivative(beta: np.ndarray, epsilon: float, mu: float) -> np.ndarray:
-        abs_beta = np.abs(beta)
-        x = (abs_beta - epsilon) / mu
-        # versione numericamente stabile
-        sigmoid = np.where(x >= 0,
-                           1.0 / (1.0 + np.exp(-x)),
-                           np.exp(x) / (1.0 + np.exp(x)))
-        return np.sign(beta) * sigmoid
+    def _smooth_abs_derivative(self, x, epsilon, mu):
+        # stabile: evita overflow quando x è grande negativo
+        out = np.empty_like(x)
+        pos = x >= 0
+        neg = ~pos
+        out[pos] = 1.0 / (1.0 + np.exp(-x[pos]))
+        ex = np.exp(x[neg])
+        out[neg] = ex / (1.0 + ex)
+        return out
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "SupportVectorRegression":
         """
@@ -147,32 +147,53 @@ class SupportVectorRegression:
             # gradient of -Q_mu at x_k
             grad = (
                     -self.Y_train
-                    + self._smooth_abs_derivative(x_k, self.epsilon, self.mu)
+                    + self.C * self._smooth_abs_derivative(x_k, self.epsilon, self.mu)
                     + K @ x_k
             )
             grad_norms.append(np.linalg.norm(grad))
-
-            # dual objective Q_mu(x_k):
-            #   y^T x_k - C * μ * sum log1p(exp((|x_k|-ε)/μ)) - 0.5 x_k^T K x_k
-            log_term = np.log1p(np.exp((np.abs(x_k) - self.epsilon) / self.mu))
-            Q_mu = self.Y_train @ x_k - self.C * self.mu * np.sum(log_term) - 0.5 * x_k @ (K @ x_k)
-            Q_mu_list.append(Q_mu)
 
             # proximal-gradient step
             y_k1 = self._project_box_sum_zero(x_k - grad / L, self.C)
             beta_norms.append(np.linalg.norm(y_k1 - y_k))
 
-            # primal objective (per monitoring)
+            # dual objective Q_mu at y_k1
+            x_val = (np.abs(y_k1) - self.epsilon) / self.mu
+            x_val = np.clip(x_val, -50, 50)  # avoid overflow in exp
+            log_term = np.log1p(np.exp(x_val))
+            Q_mu = (
+                    self.Y_train @ y_k1
+                    - self.C * self.mu * np.sum(log_term)
+                    - 0.5 * y_k1 @ (K @ y_k1)
+            )
+            Q_mu_list.append(Q_mu)
+
+            # primal objective (smoothed) at y_k1
             sv = (np.abs(y_k1) > 1e-8) & (np.abs(np.abs(y_k1) - self.C) > 1e-8)
-            b_k1 = np.mean(self.Y_train[sv] - (K @ x_k)[sv]) if np.any(sv) else 0.0
-            f_beta = K @ x_k + b_k1
+            b_k1 = np.mean(self.Y_train[sv] - (K @ y_k1)[sv]) if np.any(sv) else 0.0
+            f_beta = K @ y_k1 + b_k1
             residuals = self.Y_train - f_beta
-            primal_obj = 0.5 * x_k @ (K @ x_k) + \
-                         self.C * self.smoothed_epsilon_insensitive_loss(residuals, self.mu, self.epsilon)
+            primal_obj = (
+                    0.5 * y_k1 @ (K @ y_k1)
+                    + self.C * self.smoothed_epsilon_insensitive_loss(residuals, self.mu, self.epsilon)
+            )
             primal_vals.append(primal_obj)
 
-            print(f"[Iter {k:4d}] primal={primal_obj:.4e} | dual={Q_mu:.4e} "
-                  f"| Δβ={beta_norms[-1]:.4e} | grad_norm={grad_norms[-1]:.4e}")
+            # non-smoothed hinge primal and dual for true gap
+            hinge_loss = np.sum(np.maximum(0, np.abs(residuals) - self.epsilon))
+            primal_hinge = 0.5 * y_k1 @ (K @ y_k1) + self.C * hinge_loss
+            dual_hinge = (
+                    self.Y_train @ y_k1
+                    - self.epsilon * np.sum(np.abs(y_k1))
+                    - 0.5 * y_k1 @ (K @ y_k1)
+            )
+            gap_hinge = primal_hinge - dual_hinge
+
+            # logging
+            print(
+                f"[Iter {k:4d}] primal={primal_obj:.4e} | dual={Q_mu:.4e} "
+                f"| Δβ={beta_norms[-1]:.4e} | grad_norm={grad_norms[-1]:.4e} "
+                f"| hinge_gap={gap_hinge:.4e}"
+            )
 
             # momentum update
             z_k = self._project_box_sum_zero(z_k - (alpha_k / L) * grad, self.C)
@@ -190,17 +211,26 @@ class SupportVectorRegression:
 
         # final bias estimate
         sv = (np.abs(self.beta) > 1e-8) & (np.abs(np.abs(self.beta) - self.C) > 1e-8)
-        self.b = (np.mean(self.Y_train[sv] - (K @ self.beta)[sv])
-                  if np.any(sv) else np.mean(self.Y_train - K @ self.beta))
+        self.b = (
+            np.mean(self.Y_train[sv] - (K @ self.beta)[sv])
+            if np.any(sv) else np.mean(self.Y_train - K @ self.beta)
+        )
 
-        # final duality gap: P - D
+        # final duality gap: P - D (smoothed)
         f_beta_final = K @ self.beta + self.b
         residuals_final = self.Y_train - f_beta_final
-        primal_final = 0.5 * self.beta @ (K @ self.beta) + \
-                       self.C * self.smoothed_epsilon_insensitive_loss(residuals_final, self.mu, self.epsilon)
-        log_term_f = np.log1p(np.exp((np.abs(self.beta) - self.epsilon) / self.mu))
-        dual_final = self.Y_train @ self.beta - self.C * self.mu * np.sum(log_term_f) \
-                     - 0.5 * self.beta @ (K @ self.beta)
+        primal_final = (
+                0.5 * self.beta @ (K @ self.beta)
+                + self.C * self.smoothed_epsilon_insensitive_loss(residuals_final, self.mu, self.epsilon)
+        )
+        x_val_f = (np.abs(self.beta) - self.epsilon) / self.mu
+        x_val_f = np.clip(x_val_f, -50, 50)
+        log_term_f = np.log1p(np.exp(x_val_f))
+        dual_final = (
+                self.Y_train @ self.beta
+                - self.C * self.mu * np.sum(log_term_f)
+                - 0.5 * self.beta @ (K @ self.beta)
+        )
 
         gap = primal_final - dual_final
         rel_gap = gap / (abs(primal_final) + self.epsilon)
@@ -215,7 +245,8 @@ class SupportVectorRegression:
             'duality_gap': [p - d for p, d in zip(primal_vals, Q_mu_list)],
             'duality_gap_final': gap,
             'primal_final': primal_final,
-            'dual_final': dual_final
+            'dual_final': dual_final,
+            'gap_hinge': gap_hinge
         }
 
         # compute smoothed histories
@@ -224,9 +255,9 @@ class SupportVectorRegression:
         for key in ('beta_norms', 'grad_norms', 'Q_mu', 'duality_gap'):
             arr = np.array(self.training_history[key])
             self.training_history[f'{key}_smooth'] = np.convolve(arr, kernel, mode='valid').tolist()
-        self.training_history['iter_smooth'] = list(range(window // 2,
-                                                          window // 2 + len(
-                                                              self.training_history['beta_norms_smooth'])))
+        self.training_history['iter_smooth'] = list(
+            range(window // 2, window // 2 + len(self.training_history['beta_norms_smooth']))
+        )
 
         return self
 

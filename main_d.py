@@ -41,11 +41,11 @@ print("First 5 normalized y_train:", y_train[:5])
 param_grid_random = {
     'kernel_type': [KernelType.RBF],
     'C':       [0.01],
-    'epsilon': [0.1],
-    'sigma':   [1.0],
+    'epsilon': [1.0],
+    'sigma':   [0.5],
     'degree': [2],
     'coef':   [0.0],
-    'max_iter': [700],
+    'max_iter': [1000],
     'tol': [1e-10],
 }
 
