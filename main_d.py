@@ -40,13 +40,13 @@ print("First 5 normalized y_train:", y_train[:5])
 
 param_grid_random = {
     'kernel_type': [KernelType.RBF],
-    'C':       [1.0],
+    'C':       [0.3],
     'epsilon': [0.5],
-    'sigma':   [0.8],
+    'sigma':   [0.4],
     'degree': [2],
     'coef':   [0.0],
-    'max_iter': [8000],
-    'tol': [1e-6],
+    'max_iter': [1000],
+    'tol': [1e-7],
 }
 
 best_params, best_score = grid_search_svr(X_train, y_train, X_val, y_val, param_grid_random)

@@ -31,9 +31,9 @@ X_train_final = np.vstack((X_train, X_val))
 y_train_final = np.concatenate((y_train, y_val))
 
 # ------------------------- HYPERPARAMETERS -------------------------
-C = 0.01
-epsilon = 0.1
-sigma = 1.0
+C = 0.3
+epsilon = 0.5
+sigma = 0.4
 kernel_type = KernelType.RBF
 degree = 1
 coef = 0

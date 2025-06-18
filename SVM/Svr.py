@@ -183,6 +183,7 @@ class SupportVectorRegression:
 
         # 4) compute Lipschitz constant of ∇Q_μ = λ_max(K) + C/μ
         L = lam_max + self.C / self.mu
+        print(f"sono L {L}")
 
         # initialize history buffers
         beta_norms, grad_norms, Q_mu_list, primal_vals, duality_gap = [], [], [], [], []
