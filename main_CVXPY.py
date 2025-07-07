@@ -34,12 +34,18 @@ y_train_final = np.concatenate((y_train, y_val))
 C = 0.3
 epsilon = 0.5
 sigma = 0.4
-kernel_type = KernelType.RBF
+kernel_type = KernelType.POLYNOMIAL
 degree = 1
-coef = 0
+coef = 2
 
 
 # ------------------------- SOLVE SVR DUALE -------------------------
+
+# Moved predict_svr definition here for completeness if you're running this as a single file
+def predict_svr(X_train, X_test, beta, b, kernel_type, sigma, degree, coef):
+    K_test = compute_kernel(X_test, X_train, kernel_type, sigma, degree, coef)
+    return K_test @ beta + b
+
 def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=200, tol=1e-8):
     N = X.shape[0]
     K = compute_kernel(X, X, kernel_type, sigma, degree, coef)
@@ -63,6 +69,9 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
     grad_norms = []
     update_norms = []
     Q_vals = []
+    P_vals = []
+    duality_gaps = []
+    relative_duality_gaps = []
 
     for it in range(max_iter):
         if beta.value is not None:
@@ -78,9 +87,38 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
 
         beta_val = beta.value
 
+        # It's crucial to calculate 'b' for the *current* beta_val before using it in predict_svr
+        # This makes the primal objective calculation consistent with the current iteration's beta_val.
+        support_indices_current = np.where((np.abs(beta_val) > 1e-5) & (np.abs(beta_val) < C - 1e-5))[0]
+        if len(support_indices_current) > 0:
+            current_b = np.mean([y[i] - np.sum(beta_val * K[i, :]) - epsilon * np.sign(beta_val[i]) for i in support_indices_current])
+        else:
+            # If no support vectors are found (e.g., in early iterations or specific edge cases),
+            # 'b' needs a fallback value. Keeping it as the previously calculated 'current_b' or 0 is fine.
+            # For robust scenarios, one might consider other heuristics or a warning.
+            pass
+
         # Compute dual objective value Q(β)
         Q = y @ beta_val - epsilon * np.linalg.norm(beta_val, 1) - 0.5 * beta_val @ (K @ beta_val)
         Q_vals.append(Q)
+
+        # Compute primal objective value P(w, b, xi, xi*)
+        y_pred_train = predict_svr(X, X, beta_val, current_b, kernel_type, sigma, degree, coef)
+
+        errors = y - y_pred_train
+        xi = np.maximum(0, errors - epsilon)
+        xi_star = np.maximum(0, -errors - epsilon)
+
+        P = 0.5 * (beta_val @ (K @ beta_val)) + C * np.sum(xi + xi_star)
+        P_vals.append(P)
+
+        # Compute duality gap
+        duality_gap = P - Q
+        duality_gaps.append(duality_gap)
+
+        # Compute relative duality gap
+        relative_duality_gap = np.abs(duality_gap) / np.abs(P)
+        relative_duality_gaps.append(relative_duality_gap)
 
         # Compute gradient ∇Q(β) = y - epsilon * sign(β) - Kβ
         # Handle zero β entries carefully for sign:
@@ -95,7 +133,7 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
 
         beta_history.append(beta_val.copy())
 
-        print(f"[Iter {it}] Q={Q:.4e} | grad_norm={grad_norm:.4e} | Δβ={update_norm:.4e}")
+        print(f"[Iter {it}] Q={Q:.4e} | P={P:.4e} | D_gap={duality_gap:.4e} | Rel_D_gap={relative_duality_gap:.4e} | grad_norm={grad_norm:.4e} | Δβ={update_norm:.4e}")
 
         if update_norm < tol:
             print(update_norm)
@@ -113,6 +151,9 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
         'grad_norms': grad_norms,
         'update_norms': update_norms,
         'Q_vals': Q_vals,
+        'P_vals': P_vals,
+        'duality_gaps': duality_gaps,
+        'relative_duality_gaps': relative_duality_gaps
     }
 
     return beta_val, b, capture.getvalue(), history
@@ -192,6 +233,24 @@ plt.title('Update Norm ||β(t) - β(t-1)|| vs Iteration')
 plt.xlabel('Iteration')
 plt.ylabel('Update Norm')
 plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(10, 6))
+plt.plot(history['duality_gaps'])
+plt.title('Duality Gap (P - Q) vs Iteration')
+plt.xlabel('Iteration')
+plt.ylabel('Duality Gap')
+plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(10, 6))
+plt.plot(history['relative_duality_gaps'])
+plt.title('Relative Duality Gap vs Iteration')
+plt.xlabel('Iteration')
+plt.ylabel('Relative Duality Gap')
+plt.grid(True)
+# You might want to set a log scale for the y-axis if the gap decreases exponentially
+plt.yscale('log')
 plt.show()
 
 # ------------------------- METRICS -------------------------

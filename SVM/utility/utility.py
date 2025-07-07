@@ -214,8 +214,55 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
     plt.savefig(f"plots/scatter/svr_customRegression_{name}_{timestamp}.png")
     plt.show()
 
-
 def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
+    os.makedirs("plots/convergence", exist_ok=True)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    # iterazioni “raw” e curve smoothed
+    it_s = np.array(hist['iter_smooth'])
+    beta_s = np.array(hist['beta_norms_smooth'])
+    grad_s = np.array(hist['grad_norms_smooth'])
+    Q_s = np.array(hist['Q_mu_smooth'])
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.subplots_adjust(hspace=0.4)
+
+    # 1) Δβ
+    ax = axes[0, 0]
+    ax.plot(it_s, beta_s, color='tab:blue', label="‖β - β_prev‖ (smoothed)")
+    ax.set_title("Convergence Speed")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Update Norm")
+    ax.grid(True)
+    ax.legend()
+
+    # 2) ∥∇Q_μ∥
+    ax = axes[0, 1]
+    ax.plot(it_s, grad_s, color='tab:orange', label="‖∇Q_μ‖ (smoothed)")
+    ax.set_title("Gradient Magnitude")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Gradient Norm")
+    ax.grid(True)
+    ax.legend()
+
+    # 3) Dual objective Q_μ
+    ax = axes[1, 0]
+    ax.plot(it_s, Q_s, color='tab:green', label="Q_μ(β) (smoothed)")
+    ax.set_title("Objective Convergence")
+    ax.set_xlabel("Iterazione")
+    ax.set_ylabel("Q_μ")
+    ax.grid(True)
+    ax.legend()
+
+    fig.suptitle(f"{title_prefix} Convergenza", y=1.02)
+    fig.tight_layout()
+    fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
+    fig.savefig(fname)
+    print(f"[✓] Saved full convergence plot to {fname}")
+    plt.show()
+
+
+"""def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     os.makedirs("plots/convergence", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
@@ -283,6 +330,7 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     ax.grid(True, which='both', ls=':')
     ax.legend()
 
+    
     # --- 5) Plot Iterations vs Epsilon (O(1/ε)) ---
     epsilons = np.logspace(np.log10(tol / 10), np.log10(1e-1), 10)
     iterations_to_eps = []
@@ -293,6 +341,13 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
             iterations_to_eps.append(idxs[0] + 1)
         else:
             iterations_to_eps.append(np.nan)
+
+    print("\n--- Debugging Plot 5 ---")
+    print(f"Min duality gap found: {np.min(gap_raw):.4e}")
+    print(f"Epsilon values to check against: {epsilons}")
+    print(f"Calculated iterations_to_eps: {iterations_to_eps}") 
+    print("--------------------------\n")
+
 
     # New figure for iteration vs epsilon plot
     plt.figure(figsize=(6, 4))
@@ -317,3 +372,4 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     fig.savefig(fname)
     print(f"[✓] Saved full convergence plot to {fname}")
     plt.show()
+"""

@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 import os
 
-from SVM.Svr import SupportVectorRegression
+#from SVM.Svr import SupportVectorRegression
+from SVM.Svr_ import SupportVectorRegression
 from SVM.utility.Enum import KernelType
 from SVM.utility.Search import grid_search_svr
 from SVM.utility.utility import preprocessData, customRegressionReport, denormalize_price, denormalize, \
@@ -94,6 +95,10 @@ training_time_final = end_time_final - start_time_final
 print(f"Training time (train + val): {training_time_final:.4f} seconds")
 print("max(β) VAL:", np.max(np.abs(svr_final.beta)))
 print("bias b VAL:", svr_final.b)
+
+# ------------------------- CONVERGENCE PLOTS -------------------------
+print("\n---------------- PLOTTING CONVERGENCE ----------------")
+plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
 
 # ------------------------- TEST PREDICTION -------------------------
 print("\n---------------- TEST PHASE ----------------")
