@@ -20,7 +20,7 @@ class SupportVectorRegression:
         max_iter: int = 500,
         tol: float = 1e-6,
         tol_Q: float = 1e-8,
-        patience: int = 20
+        patience: int = 5
     ):
         # regularization parameter
         self.C = C

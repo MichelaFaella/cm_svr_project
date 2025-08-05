@@ -44,9 +44,9 @@ param_grid_random = {
     'C':       [0.3],
     'epsilon': [0.5],
     'sigma':   [0.4],
-    'degree': [2],
-    'coef':   [0.0],
-    'max_iter': [1000],
+    'degree': [1],
+    'coef':   [2.0],
+    'max_iter': [250],
     'tol': [1e-7],
 }
 
