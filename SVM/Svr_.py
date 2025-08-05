@@ -1,6 +1,5 @@
 import numpy as np
 from SVM.utility.Enum import KernelType
-from scipy.special import softplus
 
 
 class SupportVectorRegression:
@@ -9,50 +8,48 @@ class SupportVectorRegression:
     (Nesterov, 2005) on the smoothed dual objective.
     """
 
-    def __init__(self,
-                 C: float = 1.0,
-                 epsilon: float = 0.1,
-                 mu: float = None,
-                 kernel_type: KernelType = KernelType.RBF,
-                 sigma: float = 1.0,
-                 degree: int = 3,
-                 coef: float = 1.0,
-                 max_iter: int = 500,
-                 tol: float = 1e-6):
+    def __init__(
+        self,
+        C: float = 1.0,
+        epsilon: float = 0.1,
+        mu: float = None,
+        kernel_type: KernelType = KernelType.RBF,
+        sigma: float = 1.0,
+        degree: int = 3,
+        coef: float = 1.0,
+        max_iter: int = 500,
+        tol: float = 1e-6,
+        tol_Q: float = 1e-8,
+        patience: int = 20
+    ):
         # regularization parameter
         self.C = C
         # width of the ε-insensitive tube
         self.epsilon = epsilon
-        # smoothing parameter (if None, set to 1/n in fit)
+        # smoothing parameter (if None, set in fit)
         self.mu = mu
-        # kernel selection
+        # kernel configuration
         self.kernel_type = kernel_type
-        # RBF bandwidth
         self.sigma = sigma
-        # polynomial degree
         self.degree = degree
-        # polynomial coefficient
         self.coef = coef
-        # maximum number of outer iterations
+        # optimization parameters
         self.max_iter = max_iter
-        # convergence tolerance
         self.tol = tol
+        # early-stopping on dual objective
+        self.tol_Q = tol_Q
+        self.patience = patience
 
-        # placeholders
+        # placeholders for training
         self.X_train = None
         self.Y_train = None
         self.beta = None
         self.b = None
-        # will hold the Q_mu curve
         self.training_history = None
 
     def _kernel_matrix(self, X: np.ndarray, Y: np.ndarray = None) -> np.ndarray:
-        """
-        Compute the Gram matrix between X and Y.
-        """
         if Y is None:
             Y = X
-
         if self.kernel_type == KernelType.LINEAR:
             return X @ Y.T
         elif self.kernel_type == KernelType.POLYNOMIAL:
@@ -67,9 +64,6 @@ class SupportVectorRegression:
 
     @staticmethod
     def _project_box_sum_zero(v: np.ndarray, C: float, tol: float = 1e-6) -> np.ndarray:
-        
-        """Project onto { sum(v)=0, -C <= v_i <= C } by clipping and redistributing."""
-        
         u = np.clip(v, -C, C)
         s = u.sum()
         if abs(s) < tol:
@@ -86,270 +80,145 @@ class SupportVectorRegression:
                 break
         return u
 
-     # NEW: Function for f_mu(x) from paper (smoothing of |x|)
-    def f_mu(self, x, mu):
+    def f_mu(self, x: np.ndarray, mu: float) -> np.ndarray:
         abs_x = np.abs(x)
         val = np.empty_like(x, dtype=float)
-        
-        mask_le_mu = abs_x <= mu # |x| <= mu
-        val[mask_le_mu] = x[mask_le_mu]**2 / (2 * mu)
-        
-        mask_gt_mu = abs_x > mu # |x| > mu
-        val[mask_gt_mu] = abs_x[mask_gt_mu] - mu / 2
+        mask_le = abs_x <= mu
+        val[mask_le] = x[mask_le]**2 / (2 * mu)
+        mask_gt = abs_x > mu
+        val[mask_gt] = abs_x[mask_gt] - mu/2
         return val
 
-    # NEW: Function for f_mu'(x) from paper (derivative of f_mu(x))
-    def _grad_f_mu(self, x, mu):
+    def _grad_f_mu(self, x: np.ndarray, mu: float) -> np.ndarray:
         abs_x = np.abs(x)
-        grad_val = np.empty_like(x, dtype=float)
-        
-        mask_le_mu = abs_x <= mu
-        grad_val[mask_le_mu] = x[mask_le_mu] / mu
-        
-        mask_gt_mu = abs_x > mu
-        grad_val[mask_gt_mu] = np.sign(x[mask_gt_mu])
-        
-        return grad_val
-
-    def _smooth_abs_derivative(self, x, epsilon, mu):
-        # stabile: evita overflow quando x è grande negativo
-        out = np.empty_like(x)
-        pos = x >= 0
-        neg = ~pos
-        out[pos] = 1.0 / (1.0 + np.exp(-x[pos]))
-        ex = np.exp(x[neg])
-        out[neg] = ex / (1.0 + ex)
-        return out
+        grad = np.empty_like(x, dtype=float)
+        mask_le = abs_x <= mu
+        grad[mask_le] = x[mask_le] / mu
+        mask_gt = abs_x > mu
+        grad[mask_gt] = np.sign(x[mask_gt])
+        return grad
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "SupportVectorRegression":
-        
-        """Train the SVR by minimizing the smoothed dual via accelerated proximal‐gradient (Nesterov).
-        Records beta_norms, grad_norms, Q_mu at each iteration.
-       """
-        # 1) store training data
+        """
+        Train the SVR by minimizing the smoothed dual via Nesterov accelerated gradient,
+        decaying μ on-the-fly each iteration.
+        Stops when:
+          - ΔQ_mu < ε_machine · |Q_prev|;
+          - no improvement in Q_mu for 'patience' iterations;
+          - Δβ and ||grad|| both < tol.
+        """
+        # store training data
         self.X_train = X.copy()
         self.Y_train = y.copy()
         n = X.shape[0]
 
-        # 2) build Gram matrix and its spectral norm
+        # compute Gram matrix and its largest eigenvalue
         K = self._kernel_matrix(X)
         lam_max = np.max(np.linalg.eigvalsh(K))
-        print("lam_ma: ", lam_max)
 
+        # determine μ_min and μ_start
+        mu_min = self.epsilon / (n * self.C ** 2 + lam_max)
+        mu_start = self.mu if self.mu is not None else 100 * mu_min
+        # compute exponential decay rate so μ reaches μ_min in max_iter steps
+        decay = (mu_min / mu_start) ** (1 / (self.max_iter - 1))
 
-        # 3) choose a theoretically sound smoothing parameter μ
-        if self.mu is None:
-            # A robust choice for μ is one that balances the Lipschitz constants of the
-            # quadratic term (λ_max) and the smoothed term (ε/μ).
-            # Setting λ_max ≈ ε/μ gives a simple and stable choice for μ.
-            # A small tolerance is added to avoid division by zero if lam_max is 0.
-            self.mu = self.epsilon / (n * self.C ** 2 + lam_max)
-            print(f"[SVR] μ chosen to balance Lipschitz constants: {self.mu:.3e}")
+        beta_norms, grad_norms, Q_list = [], [], []
+        Q_best = -np.inf
+        no_improve = 0
 
-        # 4) compute the theoretically correct Lipschitz constant of ∇Q_μ
-        # The correct formula is L = λ_max(K) + ε/μ
-        L = lam_max + self.epsilon / self.mu
-        # Note: With the choice of μ above, L simplifies to ≈ 2 * lam_max.
-        print(f"[DIAGNOSTIC] n={n}, C={self.C}, eps={self.epsilon}, eps/mu={self.epsilon / self.mu}, lam_max={lam_max:.4e}, mu={self.mu:.4e}, L={L:.4e}")
-        print(f"Lipschitz constant L = ||K|| + ε/μ = {L:.3e}")
-
-        # initialize history buffers
-        beta_norms, grad_norms, Q_mu_list = [], [], []
-
-        # initialize Nesterov variables
+        # initialize dual variables for Nesterov
         y_k = np.zeros(n)
         z_k = np.zeros(n)
         A_k = 0.0
 
+        Q_prev = None  # for machine-epsilon stopping criterion
+
         for k in range(self.max_iter):
-            # extrapolation weights
-            alpha_k = (k + 1) / 2.0
-            A_k1 = A_k + alpha_k
-            tau_k = alpha_k / A_k1
+            # update μ_k and corresponding Lipschitz constant L
+            mu_k = max(mu_min, mu_start * (decay ** k))
+            L = lam_max + self.epsilon / mu_k
 
-            # extrapolate
-            x_k = tau_k * z_k + (1 - tau_k) * y_k
+            # Nesterov extrapolation step
+            alpha = (k + 1) / 2
+            A_next = A_k + alpha
+            tau = alpha / A_next
+            x_k = tau * z_k + (1 - tau) * y_k
 
-            # gradient of -Q_μ at x_k
-            # CORRECTED: Using _grad_f_mu_paper and epsilon factor
-            grad_fmu_term = self.epsilon * self._grad_f_mu(x_k, self.mu) 
-            grad = -self.Y_train + grad_fmu_term + K @ x_k 
-            grad_norms.append(np.linalg.norm(grad))
+            # compute gradient and its norm (using μ_k)
+            grad = -self.Y_train + self.epsilon * self._grad_f_mu(x_k, mu_k) + K @ x_k
+            grad_norm = np.linalg.norm(grad)
+            grad_norms.append(grad_norm)
 
-            # proximal step
-            y_k1 = self._project_box_sum_zero(x_k - grad / L, self.C)
-            beta_norms.append(np.linalg.norm(y_k1 - y_k))
+            # proximal step and compute Δβ
+            y_next = self._project_box_sum_zero(x_k - grad / L, self.C)
+            beta_delta = np.linalg.norm(y_next - y_k)
+            beta_norms.append(beta_delta)
 
-        
-            true_l1 = np.sum(np.abs(y_k1))
-            smoothed_l1 = np.sum(self.f_mu(y_k1, self.mu))
-            print(f"True L1: {true_l1:.4f}, Smoothed L1: {smoothed_l1:.4f}")
-
-            print(f"Sum of beta: {np.sum(y_k1):.6e}")
-
-            # dual_smoothed Q_μ at y_k1
+            # compute smoothed dual objective Q_mu (with μ_k)
             Q_mu = (
-                    self.Y_train @ y_k1
-                    - self.epsilon * np.sum(self.f_mu(y_k1, self.mu)) # Term from paper's dual
-                    - 0.5 * y_k1 @ (K @ y_k1)
+                    self.Y_train @ y_next
+                    - self.epsilon * np.sum(self.f_mu(y_next, mu_k))
+                    - 0.5 * y_next @ (K @ y_next)
             )
-            Q_mu_list.append(Q_mu)
+            Q_list.append(Q_mu)
 
-            # logging
-            print(
-                f"[Iter {k:4d}]  dual={Q_mu:.4e} | "
-                f"Δβ={beta_norms[-1]:.4e} | grad_norm={grad_norms[-1]:.4e} | "
-            )
+            # print progress
+            print(f"[Iter {k:4d}] μ={mu_k:.2e} | Q_mu={Q_mu:.4e} "
+                  f"| Δβ={beta_delta:.4e} | grad_norm={grad_norm:.4e}")
+
+            # 1) stop if change in Q_mu is below machine epsilon
+            if Q_prev is not None and abs(Q_mu - Q_prev) < np.finfo(float).eps * abs(Q_prev):
+                print(f"[Dual-converged] |ΔQ|={abs(Q_mu - Q_prev):.2e} < ε_machine")
+                break
+            Q_prev = Q_mu
+
+            # 2) early-stop if no improvement in Q_mu over 'patience' iterations
+            if Q_mu - Q_best > self.tol_Q:
+                Q_best = Q_mu
+                no_improve = 0
+            else:
+                no_improve += 1
+            if no_improve >= self.patience:
+                print(f"[Early-stop] no Q_mu improvement in {self.patience} iters at k={k}")
+                break
+
+            # 3) stop if both Δβ and gradient norm fall below tol
+            if beta_delta < self.tol and grad_norm < self.tol:
+                print(f"[Converged] at iter {k}: Δβ={beta_delta:.2e}, grad_norm={grad_norm:.2e}")
+                y_k = y_next
+                break
 
             # momentum update
-            z_k = self._project_box_sum_zero(z_k - (alpha_k / L) * grad, self.C)
+            z_k = self._project_box_sum_zero(z_k - (alpha / L) * grad, self.C)
+            y_k, A_k = y_next, A_next
 
-            # convergence check
-            if beta_norms[-1] < self.tol and grad_norms[-1] < self.tol:
-                print(f"[Converged at iter {k}] Δβ={beta_norms[-1]:.2e}, grad_norm={grad_norms[-1]:.2e}")
-                y_k = y_k1
-                break
-
-            y_k, A_k = y_k1, A_k1
-
-        # store final duals and bias
+        # store final dual variables and bias term
         self.beta = y_k
-        sv = np.where((self.beta > - self.C + 1e-6) & (self.beta < self.C - 1e-6))[0]
-        self.b = (
-            np.mean(self.Y_train[sv] - (K @ self.beta)[sv])
-            if np.any(sv) else np.mean(self.Y_train - K @ self.beta)
-        )
-
-        
-        self.training_history = {
-            'beta_norms': beta_norms,
-            'grad_norms': grad_norms,
-            'Q_mu': Q_mu_list,
-        }
-
-        # compute smoothed histories and iter_smooth
-        window = 50
-        kernel = np.ones(window) / window
-        for key in ('beta_norms', 'grad_norms', 'Q_mu'):
-            arr = np.array(self.training_history[key])
-            self.training_history[f'{key}_smooth'] = np.convolve(arr, kernel, mode='valid').tolist()
-        start = window // 2
-        end = start + len(self.training_history['beta_norms_smooth'])
-        self.training_history['iter_smooth'] = list(range(start, end))
-
-        return self
-
-    """def fit(self, X: np.ndarray, y: np.ndarray) -> "SupportVectorRegression":
-        
-        Train the SVR by minimizing the smoothed dual via accelerated proximal‐gradient (Nesterov),
-        using continuation strategy to gradually decrease μ.
-        
-        self.X_train = X.copy()
-        self.Y_train = y.copy()
-        n = X.shape[0]
-        K = self._kernel_matrix(X)
-        lam_max = np.max(np.linalg.eigvalsh(K))
-        self.K_train = K  # optionally cache
-
-        # Set continuation parameters
-        gamma = 0.5
-        mu_start = 0.05
-        mu_min = self.epsilon / (n * self.C**2 + lam_max)
-        max_stages = 10
-        print(f"[Continuation] Starting μ: {mu_start:.2e}, Target μ: {mu_min:.2e}, Decrease factor: {gamma}")
-
-        # Initial β
-        beta = np.zeros(n)
-
-        # Initialize history tracking
-        full_beta_norms, full_grad_norms, full_Q_mu_list = [], [], []
-
-        for stage in range(max_stages):
-            mu = mu_start * (gamma ** stage)
-            if mu < mu_min:
-                print(f"[Continuation] Reached μ < μ_min ({mu:.2e} < {mu_min:.2e}). Stopping.")
-                break
-
-            print(f"\n[Stage {stage + 1}] Optimizing with μ = {mu:.3e}")
-            L = lam_max + self.epsilon / mu
-            print(f"[Stage {stage + 1}] Lipschitz L = {L:.3e}")
-
-            # Reuse previous β as warm-start
-            y_k = beta.copy()
-            z_k = beta.copy()
-            A_k = 0.0
-
-            beta_norms, grad_norms, Q_mu_list = [], [], []
-
-            for k in range(self.max_iter):
-                alpha_k = (k + 1) / 2.0
-                A_k1 = A_k + alpha_k
-                tau_k = alpha_k / A_k1
-                x_k = tau_k * z_k + (1 - tau_k) * y_k
-
-                grad = -self.Y_train + self.epsilon * self._grad_f_mu(x_k, mu) + K @ x_k
-                grad_norms.append(np.linalg.norm(grad))
-
-                y_k1 = self._project_box_sum_zero(x_k - grad / L, self.C)
-                beta_norms.append(np.linalg.norm(y_k1 - y_k))
-
-                Q_mu = (
-                    self.Y_train @ y_k1
-                    - self.epsilon * np.sum(self.f_mu(y_k1, mu))
-                    - 0.5 * y_k1 @ (K @ y_k1)
-                )
-                Q_mu_list.append(Q_mu)
-
-                true_l1 = np.sum(np.abs(y_k1))
-                smoothed_l1 = np.sum(self.f_mu(y_k1, mu))
-                print(f"[Iter {k:4d}] dual={Q_mu:.4e} | Δβ={beta_norms[-1]:.4e} | grad_norm={grad_norms[-1]:.4e} | True L1={true_l1:.4f} | Smoothed L1={smoothed_l1:.4f}")
-
-                z_k = self._project_box_sum_zero(z_k - (alpha_k / L) * grad, self.C)
-
-                if beta_norms[-1] < self.tol and grad_norms[-1] < self.tol:
-                    print(f"[Converged at iter {k}] Δβ={beta_norms[-1]:.2e}, grad_norm={grad_norms[-1]:.2e}")
-                    y_k = y_k1
-                    break
-
-                y_k, A_k = y_k1, A_k1
-
-            # Store for next continuation stage
-            beta = y_k
-
-            # Aggregate all history across continuation stages
-            full_beta_norms.extend(beta_norms)
-            full_grad_norms.extend(grad_norms)
-            full_Q_mu_list.extend(Q_mu_list)
-
-        # Final model
-        self.beta = beta
         sv = np.where((self.beta > -self.C + 1e-6) & (self.beta < self.C - 1e-6))[0]
         self.b = (
             np.mean(self.Y_train[sv] - (K @ self.beta)[sv])
-            if np.any(sv) else np.mean(self.Y_train - K @ self.beta)
+            if sv.size else np.mean(self.Y_train - K @ self.beta)
         )
 
+        # save training history for diagnostics
         self.training_history = {
-            'beta_norms': full_beta_norms,
-            'grad_norms': full_grad_norms,
-            'Q_mu': full_Q_mu_list,
+            'beta_norms': beta_norms,
+            'grad_norms': grad_norms,
+            'Q_mu': Q_list,
         }
-
-        # Smoothed metrics
-        window = 50
-        kernel = np.ones(window) / window
+        # smooth the signals for plotting
+        w = 50
+        filt = np.ones(w) / w
         for key in ('beta_norms', 'grad_norms', 'Q_mu'):
             arr = np.array(self.training_history[key])
-            self.training_history[f'{key}_smooth'] = np.convolve(arr, kernel, mode='valid').tolist()
-        start = window // 2
-        end = start + len(self.training_history['beta_norms_smooth'])
-        self.training_history['iter_smooth'] = list(range(start, end))
+            self.training_history[f'{key}_smooth'] = np.convolve(arr, filt, mode='valid').tolist()
+        start = w // 2
+        self.training_history['iter_smooth'] = list(
+            range(start, start + len(self.training_history['beta_norms_smooth']))
+        )
 
-        return self"""
+        return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """
-        Predict on new data.
-        """
         K_test = self._kernel_matrix(X, self.X_train)
         return K_test @ self.beta + self.b
