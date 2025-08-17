@@ -34,6 +34,25 @@ It includes a full machine learning pipeline:
 - **Margherita Merialdo** - *Developer* - (https://github.com/margheritamerialdo)
 
 ---
+## 📁 Repository Structure
+
+```text
+.
+├── dataset_diamonds/
+│   └── diamonds_cleaned.csv        # Dataset used for regression
+├── SVM/
+│   ├── Svr.py                      # Custom SVR implementation (Nesterov)
+│   ├── Solver.py                   # CVXPY-based dual solver
+│   ├── Kernels.py                  # Linear, Polynomial, RBF kernels
+│   ├── Search.py                   # Grid & random search for hyperparameters
+│   ├── Enum.py                     # KernelType enum
+│   └── utility.py                  # Preprocessing, metrics, plotting
+├── main_d.py                       # Main for Nesterov smoothed SVR
+├── main_CVXPY.py                   # Main for CVXPY dual solver
+└── README.md                       # This file
+```
+
+---
 
 ## Documentation
 
@@ -55,19 +74,4 @@ The project is organized in the following Python modules:
 - Python 3.9+
 - Libraries: `numpy`, `pandas`, `matplotlib`, `scikit-learn`, `scipy`
 
-### Installation and Usage
 
-# Clone the repository
-git clone https://github.com/GitHubUsername/SVR-from-Scratch.git
-cd SVR-from-Scratch
-
-# (Optional) Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate      # On Linux/macOS
-venv\Scripts\activate         # On Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run your experiment
-python main.py

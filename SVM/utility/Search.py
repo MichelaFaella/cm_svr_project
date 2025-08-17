@@ -3,7 +3,7 @@ import random
 
 from sklearn.metrics import mean_squared_error
 
-from SVM.Svr_ import SupportVectorRegression
+from SVM.Svr import SupportVectorRegression
 
 
 def grid_search_svr(X_train, y_train, X_val, y_val, param_grid):

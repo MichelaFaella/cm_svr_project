@@ -6,12 +6,11 @@ import matplotlib.pyplot as plt
 import matplotlib
 import os
 
-#from SVM.Svr import SupportVectorRegression
-from SVM.Svr_ import SupportVectorRegression
+from SVM.Svr import SupportVectorRegression
 from SVM.utility.Enum import KernelType
 from SVM.utility.Search import grid_search_svr
 from SVM.utility.utility import preprocessData, customRegressionReport, denormalize_price, denormalize, \
-    plot_convergence_curves
+    plot_convergence_curves, plot_duality_gap
 
 # Use TkAgg backend for interactive plots
 matplotlib.use('TkAgg')
@@ -35,9 +34,6 @@ print("Shape y_train:", y_train.shape)
 print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
-# Best params: {'kernel_type': <KernelType.LINEAR: 'linear'>, 'C': 0.5, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 0, 'max_iter': 1000, 'tol': 1e-06} with 0.15239996002951847
-# Best params: {'kernel_type': <KernelType.RBF: 'radial basis function'>, 'C': 0.1, 'epsilon': 0.5, 'sigma': 0.8, 'degree': 1, 'coef': 0, 'max_iter': 1000, 'tol': 1e-06} with 0.13287697318425615
-# Best params: {'kernel_type': <KernelType.POLYNOMIAL: 'polynomial'>, 'C': 0.1, 'epsilon': 1.0, 'sigma': 1.0, 'degree': 1, 'coef': 2, 'max_iter': 1000, 'tol': 1e-06} with 0.16772349977957632
 
 param_grid_random = {
     'kernel_type': [KernelType.RBF],
@@ -66,9 +62,6 @@ svr_final = SupportVectorRegression(
 )
 svr_final.fit(X_train, y_train)
 
-# ------------------------- CONVERGENCE PLOTS -------------------------
-print("\n---------------- PLOTTING CONVERGENCE ----------------")
-plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
 
 # ------------------------- VALIDATION PREDICTION -------------------------
 print("\n---------------- VALIDATION PHASE ----------------")
@@ -99,6 +92,8 @@ print("bias b VAL:", svr_final.b)
 # ------------------------- CONVERGENCE PLOTS -------------------------
 print("\n---------------- PLOTTING CONVERGENCE ----------------")
 plot_convergence_curves(svr_final.training_history, title_prefix=f"SVR_Diamonds-{best_params["kernel_type"]}", tol=best_params["tol"])
+
+plot_duality_gap(svr_final.training_history, kernel_name="RBF")
 
 # ------------------------- TEST PREDICTION -------------------------
 print("\n---------------- TEST PHASE ----------------")

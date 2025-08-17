@@ -1,10 +1,8 @@
 import os
 
 from matplotlib import pyplot as plt
-from sklearn.model_selection import KFold
 import numpy as np
 import pandas as pd
-from sklearn import metrics
 from sklearn.preprocessing import MinMaxScaler
 import time
 
@@ -214,21 +212,31 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
     plt.savefig(f"plots/scatter/svr_customRegression_{name}_{timestamp}.png")
     plt.show()
 
+
 def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
+    import os, time
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # crea cartella di destinazione e filename
     os.makedirs("plots/convergence", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
+    fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
 
     # iterazioni “raw” e curve smoothed
-    it_s = np.array(hist['iter_smooth'])
-    beta_s = np.array(hist['beta_norms_smooth'])
-    grad_s = np.array(hist['grad_norms_smooth'])
-    Q_s = np.array(hist['Q_mu_smooth'])
+    it_s    = np.array(hist['iter_smooth'])
+    beta_s  = np.array(hist['beta_norms_smooth'])
+    grad_s  = np.array(hist['grad_norms_smooth'])
+    Q_s     = np.array(hist['Q_mu_smooth'])
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    fig.subplots_adjust(hspace=0.4)
+    # crea figure con constrained_layout per gestire automaticamente il suptitle
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5), constrained_layout=True)
+
+    # titolo generale
+    fig.suptitle(f"{title_prefix} Convergenza", fontsize=16)
 
     # 1) Δβ
-    ax = axes[0, 0]
+    ax = axes[0]
     ax.plot(it_s, beta_s, color='tab:blue', label="‖β - β_prev‖ (smoothed)")
     ax.set_title("Convergence Speed")
     ax.set_xlabel("Iterazione")
@@ -237,7 +245,7 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     ax.legend()
 
     # 2) ∥∇Q_μ∥
-    ax = axes[0, 1]
+    ax = axes[1]
     ax.plot(it_s, grad_s, color='tab:orange', label="‖∇Q_μ‖ (smoothed)")
     ax.set_title("Gradient Magnitude")
     ax.set_xlabel("Iterazione")
@@ -246,7 +254,7 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     ax.legend()
 
     # 3) Dual objective Q_μ
-    ax = axes[1, 0]
+    ax = axes[2]
     ax.plot(it_s, Q_s, color='tab:green', label="Q_μ(β) (smoothed)")
     ax.set_title("Objective Convergence")
     ax.set_xlabel("Iterazione")
@@ -254,122 +262,45 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     ax.grid(True)
     ax.legend()
 
-    fig.suptitle(f"{title_prefix} Convergenza", y=1.02)
-    fig.tight_layout()
-    fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
+    # salva e mostra
     fig.savefig(fname)
     print(f"[✓] Saved full convergence plot to {fname}")
     plt.show()
 
 
-"""def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
-    os.makedirs("plots/convergence", exist_ok=True)
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
+def plot_duality_gap(history, save_dir='plots/convergence', kernel_name="RBF"):
+    import os, time
+    import numpy as np
+    import matplotlib.pyplot as plt
 
-    # iterazioni “raw” e curve smoothed
-    it_s = np.array(hist['iter_smooth'])
-    beta_s = np.array(hist['beta_norms_smooth'])
-    grad_s = np.array(hist['grad_norms_smooth'])
-    Q_s = np.array(hist['Q_mu_smooth'])
+    # Extract the dual objective sequence Q_mu from history
+    Q_list = np.array(history['Q_mu'])
+    # Iterations 1…K as floats for negative powers
+    iterations = np.arange(1, len(Q_list) + 1, dtype=float)
+    # Estimate Q* as the maximum observed value
+    Q_star = Q_list.max()
+    gap = Q_star - Q_list
 
-    # recupero Q_mu raw e calcolo gap duale raw
-    Q_raw = np.array(hist['Q_mu'])
-    P_raw = np.array(hist["primal_obj"])
-    D_raw = np.array(hist['Q_mu'])
-    gap_raw = P_raw - D_raw
-    k_raw = np.arange(1, len(gap_raw)+1)
+    # Reference line O(1/k^2)
+    reference = gap[0] * iterations**(-2)
 
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    fig.subplots_adjust(hspace=0.4)
-
-    # 1) Δβ
-    ax = axes[0, 0]
-    ax.plot(it_s, beta_s, color='tab:blue', label="‖β - β_prev‖ (smoothed)")
-    ax.set_title("Convergence Speed")
-    ax.set_xlabel("Iterazione")
-    ax.set_ylabel("Update Norm")
-    ax.grid(True)
-    ax.legend()
-
-    # 2) ∥∇Q_μ∥
-    ax = axes[0, 1]
-    ax.plot(it_s, grad_s, color='tab:orange', label="‖∇Q_μ‖ (smoothed)")
-    ax.set_title("Gradient Magnitude")
-    ax.set_xlabel("Iterazione")
-    ax.set_ylabel("Gradient Norm")
-    ax.grid(True)
-    ax.legend()
-
-    # 3) Dual objective Q_μ
-    ax = axes[1, 0]
-    ax.plot(it_s, Q_s, color='tab:green', label="Q_μ(β) (smoothed)")
-    ax.set_title("Objective Convergence")
-    ax.set_xlabel("Iterazione")
-    ax.set_ylabel("Q_μ")
-    ax.grid(True)
-    ax.legend()
-
-    # 4) Duality gap Δ_k = Q* - Q_μ(y_k)
-    ax = axes[1, 1]
-    ax.plot(k_raw, gap_raw, color='tab:red', label="Dual Gap (raw)")
-
-    # se esistono gap > 0, uso log–log con retta di riferimento O(1/k)
-    mask = gap_raw > 0
-    if mask.any():
-        k_pos = k_raw[mask]
-        gap_pos = gap_raw[mask]
-        k_ref = np.logspace(np.log10(k_pos.min()), np.log10(k_pos.max()), 100)
-        ref = gap_pos[0] * (k_ref / k_pos[0]) ** -2
-        ax.plot(k_ref, ref, '--', color='tab:purple', label="O(1/k²) ref.")
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-
-    ax.set_title("Duality Gap Convergence")
-    ax.set_xlabel("Iterazione k")
-    ax.set_ylabel(r"$P_k - D_k$")
-    ax.grid(True, which='both', ls=':')
-    ax.legend()
-
-    
-    # --- 5) Plot Iterations vs Epsilon (O(1/ε)) ---
-    epsilons = np.logspace(np.log10(tol / 10), np.log10(1e-1), 10)
-    iterations_to_eps = []
-
-    for eps in epsilons:
-        idxs = np.where(gap_raw <= eps)[0]
-        if idxs.size > 0:
-            iterations_to_eps.append(idxs[0] + 1)
-        else:
-            iterations_to_eps.append(np.nan)
-
-    print("\n--- Debugging Plot 5 ---")
-    print(f"Min duality gap found: {np.min(gap_raw):.4e}")
-    print(f"Epsilon values to check against: {epsilons}")
-    print(f"Calculated iterations_to_eps: {iterations_to_eps}") 
-    print("--------------------------\n")
-
-
-    # New figure for iteration vs epsilon plot
     plt.figure(figsize=(6, 4))
-    plt.loglog(epsilons, iterations_to_eps, 'o-', label="Observed")
-    ref_iter = iterations_to_eps[0] * (epsilons[0] / epsilons)  # O(1/ε) reference
-    plt.loglog(epsilons, ref_iter, '--', color='purple', label=r'O(1/ε) ref.')
+    # Plot both curves on log–log axes for direct comparison
+    plt.loglog(iterations, gap, 'o-', label='Duality gap Δₖ', markersize=4)
+    plt.loglog(iterations, reference, '--', label='Reference $O(1/k^2)$')
 
-    plt.xlabel(r'Tolleranza ε')
-    plt.ylabel('Iterazioni per ε')
-    plt.title('Complessità Iterativa vs Tolleranza')
-    plt.grid(True, which='both', ls=':')
+    plt.xlabel('Iteration $k$')
+    plt.ylabel('Duality gap Δₖ')
+    plt.title(f'Duality Gap Convergence — {kernel_name} Kernel')
+    plt.grid(True, which='both', linestyle=':')
     plt.legend()
-    plt.gca().invert_xaxis()
-    fname_eps = f"plots/convergence/{title_prefix}_iter_vs_epsilon_{timestamp}.png"
-    plt.savefig(fname_eps)
-    print(f"[✓] Saved iteration vs epsilon plot to {fname_eps}")
+
+    os.makedirs(save_dir, exist_ok=True)
+    filename = os.path.join(
+        save_dir,
+        f"duality_gap_{kernel_name}_{time.strftime('%Y%m%d-%H%M%S')}.png"
+    )
+    plt.savefig(filename)
+    print(f"[✓] Saved duality gap plot to {filename}")
     plt.show()
 
-    fig.suptitle(f"{title_prefix} Convergenza", y=1.02)
-    fig.tight_layout()
-    fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
-    fig.savefig(fname)
-    print(f"[✓] Saved full convergence plot to {fname}")
-    plt.show()
-"""
