@@ -106,7 +106,7 @@ X_train_final_denorm = denormalize(X_train_final, mean, std)
 print("\n---------------- PLOTTING SVR CURVE ON SIGNIFICANT FEATURE ----------------")
 timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-# Select meaningful feature to visualize (e.g., "carat")
+# Select meaningful feature to visualize 
 feature_name = "carat"
 feature_idx = list(data_sampled.columns).index(feature_name)
 
