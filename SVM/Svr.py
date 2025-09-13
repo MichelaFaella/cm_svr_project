@@ -47,6 +47,7 @@ class SupportVectorRegression:
         self.b = None
         self.training_history = None
 
+     # Compute the kernel (Gram) matrix between X and Y based on the selected kernel type.
     def _kernel_matrix(self, X: np.ndarray, Y: np.ndarray = None) -> np.ndarray:
         if Y is None:
             Y = X
@@ -62,6 +63,7 @@ class SupportVectorRegression:
         else:
             raise ValueError(f"Unsupported kernel type: {self.kernel_type}")
 
+    # Project vector v onto the box constraints [-C, C] with the sum of elements enforced to zero.
     @staticmethod
     def _project_box_sum_zero(v: np.ndarray, C: float, tol: float = 1e-6) -> np.ndarray:
         u = np.clip(v, -C, C)
@@ -80,6 +82,7 @@ class SupportVectorRegression:
                 break
         return u
 
+    # Compute the smoothed absolute value function used in the ε-insensitive loss.
     def f_mu(self, x: np.ndarray, mu: float) -> np.ndarray:
         abs_x = np.abs(x)
         val = np.empty_like(x, dtype=float)
@@ -89,6 +92,7 @@ class SupportVectorRegression:
         val[mask_gt] = abs_x[mask_gt] - mu/2
         return val
 
+    # Compute the gradient of the smoothed absolute value function.
     def _grad_f_mu(self, x: np.ndarray, mu: float) -> np.ndarray:
         abs_x = np.abs(x)
         grad = np.empty_like(x, dtype=float)
@@ -98,6 +102,7 @@ class SupportVectorRegression:
         grad[mask_gt] = np.sign(x[mask_gt])
         return grad
 
+    # Train SVR using Nesterov accelerated gradient on the smoothed dual objective.
     def fit(self, X: np.ndarray, y: np.ndarray) -> "SupportVectorRegression":
         """
         Train the SVR by minimizing the smoothed dual via Nesterov accelerated gradient,
@@ -219,6 +224,7 @@ class SupportVectorRegression:
 
         return self
 
+    # Predict target values for input X using the trained SVR model.
     def predict(self, X: np.ndarray) -> np.ndarray:
         K_test = self._kernel_matrix(X, self.X_train)
         return K_test @ self.beta + self.b

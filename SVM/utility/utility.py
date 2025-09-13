@@ -6,22 +6,10 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import time
 
-
+# Split data into training, validation and test sets.
 def splitData(
         data,
 ):
-    """
-    Split data into training, validation and test sets.
-
-    Parameters:
-    - data: Input DataFrame with features and targets.
-
-    Returns:
-    - split_train_set: Training set.
-    - split_validation_set: Validation set.
-    - split_test_set: Test set.
-    """
-
     # Convert to NumPy array
     data_array = np.array(data)
 
@@ -74,42 +62,19 @@ def zscore_normalization(data, means=None, stds=None):
 
     return data_normalized, means, stds
 
-
-def denormalize_zscore(predictions, data):
-    """
-    Denormalizes the predicted values back to the original scale using Z-score normalization.
-
-    Parameters:
-    - predictions: The normalized predicted values.
-    - means: Means used for normalization.
-    - stds: Standard deviations used for normalization.
-    """
-
-    # Initialize a copy of the predictions array
-    denorm_predictions = predictions.copy()
-
-    # Select the columns of interest for denormalization
-    target_data = data['price']
-
-    mean = target_data.mean()
-    std = target_data.std()
-    denorm_predictions = predictions * std + mean
-
-    return denorm_predictions
-
-
+# denormalize target feature
 def denormalize_price(predictions, y_mean, y_std):
     y_mean = y_mean.values[0] if isinstance(y_mean, pd.Series) else y_mean
     y_std = y_std.values[0] if isinstance(y_std, pd.Series) else y_std
     return predictions * y_std + y_mean
 
-
+# denormalize features
 def denormalize(predictions, mean, std):
     mean = mean.values[0] if isinstance(mean, pd.Series) else mean
     std = std.values[0] if isinstance(std, pd.Series) else std
     return predictions * std + mean
 
-
+# remove outliers
 def remove_outliers(df, method="iqr"):
     df_cleaned = df.copy()
     numeric_cols = df_cleaned.select_dtypes(include=[np.number]).columns
@@ -131,7 +96,7 @@ def remove_outliers(df, method="iqr"):
     else:
         raise ValueError("Metodo non valido. Usa 'zscore' o 'iqr'.")
 
-
+# preprocessing of data
 def preprocessData(data, outlier_method="iqr"):
     # Remove outliers
     data = remove_outliers(data, method=outlier_method)
@@ -212,7 +177,7 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
     plt.savefig(f"plots/scatter/svr_customRegression_{name}_{timestamp}.png")
     plt.show()
 
-
+# function to plot convergence curves
 def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     import os, time
     import numpy as np
@@ -267,7 +232,7 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     print(f"[✓] Saved full convergence plot to {fname}")
     plt.show()
 
-
+# function to plot duality gap
 def plot_duality_gap(history, save_dir='plots/convergence', kernel_name="RBF"):
     import os, time
     import numpy as np

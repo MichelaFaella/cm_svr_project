@@ -57,7 +57,7 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
         cp.sum(beta) == 0,
     ]
 
-    # Minimizzazione equivalente alla precedente massimizzazione
+    # Minimization equivalent to previous maximization
     linear = y @ beta - epsilon * cp.norm1(beta)
     quadratic = 0.5 * cp.quad_form(beta, cp.psd_wrap(K))
     objective = cp.Minimize(quadratic - linear)
@@ -249,7 +249,6 @@ plt.title('Relative Duality Gap vs Iteration')
 plt.xlabel('Iteration')
 plt.ylabel('Relative Duality Gap')
 plt.grid(True)
-# You might want to set a log scale for the y-axis if the gap decreases exponentially
 plt.yscale('log')
 plt.show()
 
