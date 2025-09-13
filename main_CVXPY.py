@@ -46,6 +46,7 @@ def predict_svr(X_train, X_test, beta, b, kernel_type, sigma, degree, coef):
     K_test = compute_kernel(X_test, X_train, kernel_type, sigma, degree, coef)
     return K_test @ beta + b
 
+
 def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=200, tol=1e-8):
     N = X.shape[0]
     K = compute_kernel(X, X, kernel_type, sigma, degree, coef)
@@ -91,7 +92,8 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
         # This makes the primal objective calculation consistent with the current iteration's beta_val.
         support_indices_current = np.where((np.abs(beta_val) > 1e-5) & (np.abs(beta_val) < C - 1e-5))[0]
         if len(support_indices_current) > 0:
-            current_b = np.mean([y[i] - np.sum(beta_val * K[i, :]) - epsilon * np.sign(beta_val[i]) for i in support_indices_current])
+            current_b = np.mean(
+                [y[i] - np.sum(beta_val * K[i, :]) - epsilon * np.sign(beta_val[i]) for i in support_indices_current])
         else:
             # If no support vectors are found (e.g., in early iterations or specific edge cases),
             # 'b' needs a fallback value. Keeping it as the previously calculated 'current_b' or 0 is fine.
@@ -133,7 +135,8 @@ def solve_svr_dual(X, y, epsilon, C, sigma, kernel_type, degree, coef, max_iter=
 
         beta_history.append(beta_val.copy())
 
-        print(f"[Iter {it}] Q={Q:.4e} | P={P:.4e} | D_gap={duality_gap:.4e} | Rel_D_gap={relative_duality_gap:.4e} | grad_norm={grad_norm:.4e} | Δβ={update_norm:.4e}")
+        print(
+            f"[Iter {it}] Q={Q:.4e} | P={P:.4e} | D_gap={duality_gap:.4e} | Rel_D_gap={relative_duality_gap:.4e} | grad_norm={grad_norm:.4e} | Δβ={update_norm:.4e}")
 
         if update_norm < tol:
             print(update_norm)

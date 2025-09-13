@@ -9,18 +9,18 @@ class SupportVectorRegression:
     """
 
     def __init__(
-        self,
-        C: float = 1.0,
-        epsilon: float = 0.1,
-        mu: float = None,
-        kernel_type: KernelType = KernelType.RBF,
-        sigma: float = 1.0,
-        degree: int = 3,
-        coef: float = 1.0,
-        max_iter: int = 500,
-        tol: float = 1e-6,
-        tol_Q: float = 1e-8,
-        patience: int = 5
+            self,
+            C: float = 1.0,
+            epsilon: float = 0.1,
+            mu: float = None,
+            kernel_type: KernelType = KernelType.RBF,
+            sigma: float = 1.0,
+            degree: int = 3,
+            coef: float = 1.0,
+            max_iter: int = 500,
+            tol: float = 1e-6,
+            tol_Q: float = 1e-8,
+            patience: int = 5
     ):
         # regularization parameter
         self.C = C
@@ -47,7 +47,7 @@ class SupportVectorRegression:
         self.b = None
         self.training_history = None
 
-     # Compute the kernel (Gram) matrix between X and Y based on the selected kernel type.
+    # Compute the kernel (Gram) matrix between X and Y based on the selected kernel type.
     def _kernel_matrix(self, X: np.ndarray, Y: np.ndarray = None) -> np.ndarray:
         if Y is None:
             Y = X
@@ -87,9 +87,9 @@ class SupportVectorRegression:
         abs_x = np.abs(x)
         val = np.empty_like(x, dtype=float)
         mask_le = abs_x <= mu
-        val[mask_le] = x[mask_le]**2 / (2 * mu)
+        val[mask_le] = x[mask_le] ** 2 / (2 * mu)
         mask_gt = abs_x > mu
-        val[mask_gt] = abs_x[mask_gt] - mu/2
+        val[mask_gt] = abs_x[mask_gt] - mu / 2
         return val
 
     # Compute the gradient of the smoothed absolute value function.

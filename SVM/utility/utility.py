@@ -6,6 +6,7 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import time
 
+
 # Split data into training, validation and test sets.
 def splitData(
         data,
@@ -62,17 +63,20 @@ def zscore_normalization(data, means=None, stds=None):
 
     return data_normalized, means, stds
 
+
 # denormalize target feature
 def denormalize_price(predictions, y_mean, y_std):
     y_mean = y_mean.values[0] if isinstance(y_mean, pd.Series) else y_mean
     y_std = y_std.values[0] if isinstance(y_std, pd.Series) else y_std
     return predictions * y_std + y_mean
 
+
 # denormalize features
 def denormalize(predictions, mean, std):
     mean = mean.values[0] if isinstance(mean, pd.Series) else mean
     std = std.values[0] if isinstance(std, pd.Series) else std
     return predictions * std + mean
+
 
 # remove outliers
 def remove_outliers(df, method="iqr"):
@@ -95,6 +99,7 @@ def remove_outliers(df, method="iqr"):
 
     else:
         raise ValueError("Metodo non valido. Usa 'zscore' o 'iqr'.")
+
 
 # preprocessing of data
 def preprocessData(data, outlier_method="iqr"):
@@ -131,7 +136,6 @@ def preprocessData(data, outlier_method="iqr"):
         np.array(test_X), np.array(test_Y).reshape(-1, 1),
         y_mean, y_std,
         pd.Series(scaler_X.data_min_), pd.Series(scaler_X.data_max_ - scaler_X.data_min_)
-        # simula mean/std per compatibilità
     )
 
 
@@ -177,27 +181,24 @@ def customRegressionReport(trueValues, predictedValues, labels=None, name="val")
     plt.savefig(f"plots/scatter/svr_customRegression_{name}_{timestamp}.png")
     plt.show()
 
+
 # function to plot convergence curves
 def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     import os, time
     import numpy as np
     import matplotlib.pyplot as plt
 
-    # crea cartella di destinazione e filename
     os.makedirs("plots/convergence", exist_ok=True)
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     fname = f"plots/convergence/{title_prefix}_convergence_full_{timestamp}.png"
 
-    # iterazioni “raw” e curve smoothed
-    it_s    = np.array(hist['iter_smooth'])
-    beta_s  = np.array(hist['beta_norms_smooth'])
-    grad_s  = np.array(hist['grad_norms_smooth'])
-    Q_s     = np.array(hist['Q_mu_smooth'])
+    it_s = np.array(hist['iter_smooth'])
+    beta_s = np.array(hist['beta_norms_smooth'])
+    grad_s = np.array(hist['grad_norms_smooth'])
+    Q_s = np.array(hist['Q_mu_smooth'])
 
-    # crea figure con constrained_layout per gestire automaticamente il suptitle
     fig, axes = plt.subplots(1, 3, figsize=(18, 5), constrained_layout=True)
 
-    # titolo generale
     fig.suptitle(f"{title_prefix} Convergenza", fontsize=16)
 
     # 1) Δβ
@@ -227,10 +228,10 @@ def plot_convergence_curves(hist, title_prefix="SVR", tol=1e-6):
     ax.grid(True)
     ax.legend()
 
-    # salva e mostra
     fig.savefig(fname)
     print(f"[✓] Saved full convergence plot to {fname}")
     plt.show()
+
 
 # function to plot duality gap
 def plot_duality_gap(history, save_dir='plots/convergence', kernel_name="RBF"):
@@ -247,7 +248,7 @@ def plot_duality_gap(history, save_dir='plots/convergence', kernel_name="RBF"):
     gap = Q_star - Q_list
 
     # Reference line O(1/k^2)
-    reference = gap[0] * iterations**(-2)
+    reference = gap[0] * iterations ** (-2)
 
     plt.figure(figsize=(6, 4))
     # Plot both curves on log–log axes for direct comparison
@@ -268,4 +269,3 @@ def plot_duality_gap(history, save_dir='plots/convergence', kernel_name="RBF"):
     plt.savefig(filename)
     print(f"[✓] Saved duality gap plot to {filename}")
     plt.show()
-

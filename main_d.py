@@ -34,7 +34,7 @@ print("Shape y_train:", y_train.shape)
 print("First 5 normalized y_train:", y_train[:5])
 
 # ------------------------- HYPERPARAMETER SEARCH -------------------------
-
+# Optimal parameters
 param_grid_random = {
     'kernel_type': [KernelType.RBF],
     'C':       [0.3],
@@ -42,7 +42,7 @@ param_grid_random = {
     'sigma':   [0.4],
     'degree': [1],
     'coef':   [2.0],
-    'max_iter': [250],
+    'max_iter': [2500],
     'tol': [1e-7],
 }
 
